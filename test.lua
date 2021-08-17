@@ -32,29 +32,16 @@ ffi.copy(ignore[1], './build')
 
 lib.fzf_setup(ignore, 2)
 
---local prompt = ffi.new('fzf_string[?]', 1)
---prompt[0].str = ffi.new('char[?]', #'fuzzy' + 1)
---ffi.copy(prompt[0].str, 'fuzzy')
---prompt[0].len = #'fuzzy'
---
---local comp = ffi.new('fzf_string[?]', 1)
---comp[0].str = ffi.new('char[?]', #'tuzzy' + 1)
---ffi.copy(comp[0].str, 'tuzzy')
---comp[0].len = #'tuzzy'
-
---local res = lib.fzf_fuzzy_match(prompt, comp)
---print(res)
-
 local prompt = ffi.new('fzf_string[?]', 1)
-prompt[0].str = ffi.new('char[?]', #'fuzzy' + 1)
-ffi.copy(prompt[0].str, 'fuzzy')
-prompt[0].len = #'fuzzy'
+prompt[0].str = ffi.new('char[?]', #'main' + 1)
+ffi.copy(prompt[0].str, 'main')
+prompt[0].len = #'main'
 
 local output = lib.fzf_get_output(prompt)
 
 local len = tonumber(output.len) - 1
+print(len)
 for i = 0, len do
 	local string = output.results[i]
 	print(ffi.string(string.str, string.len))
-	print(i)
 end

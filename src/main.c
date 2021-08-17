@@ -10,7 +10,7 @@ int main(int argc, char** argv)
 		prompt = argv[1];
 
 	char* ignore[] = {
-		"./foo"
+		"../build"
 	};
 
 	fzf_setup(ignore, 1);
@@ -18,6 +18,7 @@ int main(int argc, char** argv)
 	fzf_string input = (fzf_string){ .str = prompt, .len = strlen(prompt) };
 	fzf_output out = fzf_get_output(&input);
 
+	printf("results\n");
 	for (int i = 0; i < out.len; i++)
 	{
 		printf("%s\n", out.results[i]);
