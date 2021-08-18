@@ -67,38 +67,57 @@ static fzf_string str_tolower(const char* str)
 	return (fzf_string){ .str = lower, .len = len };
 }
 
+static void recurse_directories(fzf_dirnode* node, char** ignore, int len)
+{
+	for (size_t i = 0; i < node->len; i++)
+	{
+		fzf_dirnode* child = &node->children[i];
+
+		if (!child->is_dir) continue;
+
+		int skip = 0;
+		for (int i = 0; i < len; i++)
+		{
+			if (!strcmp(ignore[i], child->name.str))
+			{
+				skip = 1;
+				break;
+			}
+		}
+
+		if (skip) continue;
+
+		fzf_read_directory(child);
+		recurse_directories(child, ignore, len);
+	}
+}
+
 void fzf_setup(char** ignore, int len)
 {
-	void setup_recurse(fzf_dirnode* node)
-	{
-		for (size_t i = 0; i < node->len; i++)
-		{
-			fzf_dirnode* child = &node->children[i];
-
-			if (!child->is_dir) continue;
-
-			int skip = 0;
-			for (int i = 0; i < len; i++)
-			{
-				if (!strcmp(ignore[i], child->name.str))
-				{
-					skip = 1;
-					break;
-				}
-			}
-
-			if (skip) continue;
-
-			fzf_read_directory(child);
-			setup_recurse(child);
-		}
-	}
-
 	s_root = (fzf_dirnode){ .name = (fzf_string){ .str = ".", .len = 1 },
 		.children = NULL, .len = 0, .is_dir = 1 };
 
 	fzf_read_directory(&s_root);
-	setup_recurse(&s_root);
+	recurse_directories(&s_root, ignore, len);
+}
+
+static void scores_recurse(fzf_dirnode* node, fzf_string* prompt)
+{
+	for (size_t i = 0; i < node->len; i++)
+	{
+		fzf_dirnode* child = &node->children[i];
+
+		if (child->is_dir)
+		{
+			scores_recurse(child, prompt);
+			continue;
+		}
+
+		fzf_string name = str_tolower(child->name.str);
+		int score = fzf_fuzzy_match(prompt, &name) - 2 * fzf_char_match(prompt, &name) - name.len / 2;
+		add_result(child, score);
+		free(name.str);
+	}
 }
 
 fzf_output fzf_get_output(fzf_string* prompt)
@@ -111,32 +130,13 @@ fzf_output fzf_get_output(fzf_string* prompt)
 		s_results.len++;
 	}
 
-	void scores_recurse(fzf_dirnode* node)
-	{
-		for (size_t i = 0; i < node->len; i++)
-		{
-			fzf_dirnode* child = &node->children[i];
-
-			if (child->is_dir)
-			{
-				scores_recurse(child);
-				continue;
-			}
-
-			fzf_string name = str_tolower(child->name.str);
-			int score = fzf_fuzzy_match(prompt, &name) - 2 * fzf_char_match(prompt, &name) - name.len / 2;
-			add_result(child, score);
-			free(name.str);
-		}
-	}
-
 	for (size_t i = 0; i < s_root.len; i++)
 	{
 		fzf_dirnode* child = &s_root.children[i];
 
 		if (child->is_dir)
 		{
-			scores_recurse(child);
+			scores_recurse(child, prompt);
 			continue;
 		}
 
@@ -147,8 +147,9 @@ fzf_output fzf_get_output(fzf_string* prompt)
 	}
 
 	fzf_output out;
-	int count = 0;
 	fzf_string* str = out.results;
+
+	int count = 0;
 	for (int i = s_results.len - 1; i >= 0; i--)
 	{
 		fzf_dirnode* node = s_results.greatest[i]->node;
