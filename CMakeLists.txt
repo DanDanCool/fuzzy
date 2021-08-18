@@ -1,17 +1,28 @@
 cmake_minimum_required(VERSION 3.10)
 
-project(fuzzy)
+project(fuzzy LANGUAGES C)
 
-#add_library(${PROJECT_NAME} SHARED src/fuzzy.c src/fuzzy.h)
-#set_target_properties(${PROJECT_NAME} PROPERTIES PUBLIC_HEADER src/fuzzy.h)
-#target_include_directories(${PROJECT_NAME} PRIVATE ${PROJECT_SOURCE_DIR}/src)
-#
-#add_executable(main src/main.c)
-#target_link_libraries(main PUBLIC ${PROJECT_NAME})
-#target_link_directories(main PRIVATE src)
+set(SOURCE_FILES src/fuzzy.c src/fuzzy.h src/filesystem.h)
 
-add_executable(${PROJECT_NAME} src/main.c)
+if(WIN32)
+	list(APPEND SOURCE_FILES src/win32.c)
+endif()
+
+if (UNIX)
+	list(APPEND SOURCE_FILES src/linux.c)
+	add_compile_options(-g)
+endif()
+
+add_library(libfuzzy SHARED ${SOURCE_FILES})
+set_target_properties(libfuzzy PROPERTIES PUBLIC_HEADER src/fuzzy.h)
+target_include_directories(libfuzzy PRIVATE ${PROJECT_SOURCE_DIR}/src)
+
+if(WIN32)
+	set_target_properties(libfuzzy PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS TRUE)
+endif()
+
+add_executable(main src/main.c)
+target_link_libraries(main PUBLIC libfuzzy)
 
 set(CMAKE_BUILD_TYPE Debug)
-set_target_properties(fuzzy PROPERTIES LINKER_LANGUAGE C)
-add_compile_options(-g)
+set_target_properties(libfuzzy PROPERTIES LINKER_LANGUAGE C)

@@ -21,39 +21,35 @@ static fzf_dirnode new_dirnode(fzf_dirnode* parent, WIN32_FIND_DATA* dir_entry)
 void fzf_read_directory(fzf_dirnode* dir)
 {
 	WIN32_FIND_DATA dir_entry;
-	HANDLE directory = FindFirstFile("../*", &dir_entry);
+	char* search = (char*)malloc(dir->name.len + 3);
+	sprintf(search, "%s/*", dir->name.str);
+
+	// skip first two results since those seem to always be . and ..
+	HANDLE directory = FindFirstFile(search, &dir_entry);
+	FindNextFile(directory, &dir_entry);
 
 	if (directory == INVALID_HANDLE_VALUE)
 		return;
 
-	int count = 1;
+	int count = 0;
 	while (FindNextFile(directory, &dir_entry))
-	{
-		if (!strcmp(dir_entry.cFileName, ".") || !strcmp(dir_entry.cFileName, ".."))
-			continue;
-
 		count++;
-	}
 
 	dir->children = (fzf_dirnode*)malloc(count * sizeof(fzf_dirnode));
 	dir->len = count;
 
 	// seems kind of bad... but I don't want to allocate more memory than required
 	FindClose(directory);
-	directory = FindFirstFile("../*", &dir_entry);
+	directory = FindFirstFile(search, &dir_entry);
+	FindNextFile(directory, &dir_entry);
 
 	fzf_dirnode* child = dir->children;
-	*child = new_dirnode(dir, &dir_entry);
-	child++;
-
 	while (FindNextFile(directory, &dir_entry))
 	{
-		if (!strcmp(dir_entry.cFileName, ".") || !strcmp(dir_entry.cFileName, ".."))
-			continue;
-
 		*child = new_dirnode(dir, &dir_entry);
 		child++;
 	}
 
 	FindClose(directory);
+	free(search);
 }

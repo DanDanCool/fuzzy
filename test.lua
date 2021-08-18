@@ -1,6 +1,6 @@
 local ffi = require('ffi')
 
-local lib = ffi.load('build/libfuzzy.so')
+local lib = ffi.load('build/libfuzzy.dll')
 
 ffi.cdef[[
 	typedef struct
