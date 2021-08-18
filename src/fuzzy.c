@@ -82,19 +82,15 @@ static void read_directory(fzf_dirnode* dir)
 	if (!directory)
 		return;
 
-	struct dirent* dir_entry = readdir(directory);
-
+	struct dirent* dir_entry;
 	size_t count = 0;
-	while (dir_entry)
+
+	while (dir_entry = readdir(directory))
 	{
 		if (!strcmp(dir_entry->d_name, ".") || !strcmp(dir_entry->d_name, ".."))
-		{
-			dir_entry = readdir(directory);
 			continue;
-		}
 
 		count++;
-		dir_entry = readdir(directory);
 	}
 
 	if (!count)
@@ -104,20 +100,15 @@ static void read_directory(fzf_dirnode* dir)
 	dir->len = count;
 
 	rewinddir(directory);
-	dir_entry = readdir(directory);
+	fzf_dirnode* child = dir->children;
 
-	size_t i = 0;
-	while (dir_entry)
+	while (dir_entry = readdir(directory))
 	{
 		if (!strcmp(dir_entry->d_name, ".") || !strcmp(dir_entry->d_name, ".."))
-		{
-			dir_entry = readdir(directory);
 			continue;
-		}
 
-		dir->children[i] = new_dirnode(dir, dir_entry);
-		dir_entry = readdir(directory);
-		i++;
+		*child = new_dirnode(dir, dir_entry);
+		child++;
 	}
 
 	closedir(directory);

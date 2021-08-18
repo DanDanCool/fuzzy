@@ -1,5 +1,8 @@
 #include <stdio.h>
 
+#include <sys/types.h>
+#include <dirent.h>
+
 #include "fuzzy.h"
 
 int main(int argc, char** argv)
@@ -23,4 +26,24 @@ int main(int argc, char** argv)
 	{
 		printf("%s\n", out.results[i]);
 	}
+
+	//DIR* directory = opendir(".");
+	//if (!directory)
+	//	return 0;
+
+	//struct dirent* dir_entry;
+	//size_t count = 0;
+
+	//while (dir_entry = readdir(directory))
+	//{
+	//	if (!strcmp(dir_entry->d_name, ".") || !strcmp(dir_entry->d_name, ".."))
+	//		continue;
+
+	//	count++;
+	//	printf("%s\n", dir_entry->d_name);
+	//}
+
+	//printf("%i\n", count);
+
+	//closedir(directory);
 }
