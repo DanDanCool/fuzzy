@@ -1,8 +1,15 @@
 #include <stdio.h>
 
+<<<<<<< HEAD
 //#include "fuzzy.h"
 #include <windows.h>
 #include <fileapi.h>
+=======
+#include <sys/types.h>
+#include <dirent.h>
+
+#include "fuzzy.h"
+>>>>>>> f1822ba28ee1bafbd00ed5d8f40a983c052519e7
 
 int main(int argc, char** argv)
 {
@@ -36,6 +43,7 @@ int main(int argc, char** argv)
 		return 0;
 	}
 
+<<<<<<< HEAD
 	int count = 1;
 	printf("%s\n", dir_entry.cFileName);
 
@@ -51,4 +59,25 @@ int main(int argc, char** argv)
 	printf("%i\n", count);
 
 	FindClose(directory);
+=======
+	//DIR* directory = opendir(".");
+	//if (!directory)
+	//	return 0;
+
+	//struct dirent* dir_entry;
+	//size_t count = 0;
+
+	//while (dir_entry = readdir(directory))
+	//{
+	//	if (!strcmp(dir_entry->d_name, ".") || !strcmp(dir_entry->d_name, ".."))
+	//		continue;
+
+	//	count++;
+	//	printf("%s\n", dir_entry->d_name);
+	//}
+
+	//printf("%i\n", count);
+
+	//closedir(directory);
+>>>>>>> f1822ba28ee1bafbd00ed5d8f40a983c052519e7
 }

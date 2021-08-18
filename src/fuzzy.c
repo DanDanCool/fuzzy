@@ -1,12 +1,10 @@
-#include <sys/types.h>
-#include <dirent.h>
-
 #include <ctype.h>
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
 
 #include "fuzzy.h"
+#include "filesystem.h"
 
 typedef struct fzf_dirnode
 {
@@ -63,64 +61,6 @@ static void add_result(fzf_dirnode* node, int score)
 		s_results.greatest[i]->score = score;
 		s_results.greatest[i]->node = node;
 	}
-}
-
-static fzf_dirnode new_dirnode(fzf_dirnode* parent, struct dirent* dir_entry)
-{
-	int is_dir = dir_entry->d_type == DT_DIR ? 1 : 0;
-	int len = strlen(dir_entry->d_name) + parent->name.len + 1;
-	char* name = (char*)malloc(len + 1);
-	sprintf(name, "%s/%s", parent->name.str, dir_entry->d_name);
-
-	return (fzf_dirnode){ .name = (fzf_string){ .str = name, .len = len },
-	.children = NULL, .len = 0, .is_dir = is_dir };
-}
-
-static void read_directory(fzf_dirnode* dir)
-{
-	DIR* directory = opendir(dir->name.str);
-	if (!directory)
-		return;
-
-	struct dirent* dir_entry = readdir(directory);
-
-	size_t count = 0;
-	while (dir_entry)
-	{
-		if (!strcmp(dir_entry->d_name, ".") || !strcmp(dir_entry->d_name, ".."))
-		{
-			dir_entry = readdir(directory);
-			continue;
-		}
-
-		count++;
-		dir_entry = readdir(directory);
-	}
-
-	if (!count)
-		return;
-
-	dir->children = (fzf_dirnode*)malloc(count * sizeof(fzf_dirnode));
-	dir->len = count;
-
-	rewinddir(directory);
-	dir_entry = readdir(directory);
-
-	size_t i = 0;
-	while (dir_entry)
-	{
-		if (!strcmp(dir_entry->d_name, ".") || !strcmp(dir_entry->d_name, ".."))
-		{
-			dir_entry = readdir(directory);
-			continue;
-		}
-
-		dir->children[i] = new_dirnode(dir, dir_entry);
-		dir_entry = readdir(directory);
-		i++;
-	}
-
-	closedir(directory);
 }
 
 static fzf_string str_tolower(const char* str)
