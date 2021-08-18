@@ -1,6 +1,7 @@
 #include <sys/types.h>
 #include <dirent.h>
 
+#include "fuzzy.h"
 #include "filesystem.h"
 
 static fzf_dirnode new_dirnode(fzf_dirnode* parent, struct dirent* dir_entry)

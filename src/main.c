@@ -1,15 +1,7 @@
 #include <stdio.h>
 
-<<<<<<< HEAD
-//#include "fuzzy.h"
-#include <windows.h>
-#include <fileapi.h>
-=======
-#include <sys/types.h>
-#include <dirent.h>
-
 #include "fuzzy.h"
->>>>>>> f1822ba28ee1bafbd00ed5d8f40a983c052519e7
+#include "filesystem.h"
 
 int main(int argc, char** argv)
 {
@@ -33,51 +25,13 @@ int main(int argc, char** argv)
 	//	printf("%s\n", out.results[i]);
 	//}
 
-	HANDLE directory;
-	WIN32_FIND_DATA dir_entry;
+	fzf_dirnode root = { (fzf_string){ .str = ".", .len = 1 },
+		.children = NULL, .len = 0, .is_dir = 1 };
 
-	directory = FindFirstFile("../*", &dir_entry);
-	if (directory == INVALID_HANDLE_VALUE)
+	fzf_read_directory(&root);
+
+	for (size_t i = 0; i < root.len; i++)
 	{
-		printf("Invalid handle value!");
-		return 0;
+		printf("name: %s, dir: %i\n", root.children[i].name.str, root.children[i].is_dir);
 	}
-
-<<<<<<< HEAD
-	int count = 1;
-	printf("%s\n", dir_entry.cFileName);
-
-	while(FindNextFile(directory, &dir_entry))
-	{
-		printf("%s\n", dir_entry.cFileName);
-
-		if (dir_entry.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
-			printf("directory!\n");
-		count++;
-	}
-
-	printf("%i\n", count);
-
-	FindClose(directory);
-=======
-	//DIR* directory = opendir(".");
-	//if (!directory)
-	//	return 0;
-
-	//struct dirent* dir_entry;
-	//size_t count = 0;
-
-	//while (dir_entry = readdir(directory))
-	//{
-	//	if (!strcmp(dir_entry->d_name, ".") || !strcmp(dir_entry->d_name, ".."))
-	//		continue;
-
-	//	count++;
-	//	printf("%s\n", dir_entry->d_name);
-	//}
-
-	//printf("%i\n", count);
-
-	//closedir(directory);
->>>>>>> f1822ba28ee1bafbd00ed5d8f40a983c052519e7
 }

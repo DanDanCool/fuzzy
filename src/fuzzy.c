@@ -6,14 +6,6 @@
 #include "fuzzy.h"
 #include "filesystem.h"
 
-typedef struct fzf_dirnode
-{
-	fzf_string name;
-	struct fzf_dirnode* children;
-	size_t len;
-	int is_dir;
-} fzf_dirnode;
-
 typedef struct
 {
 	fzf_dirnode* node;
@@ -97,7 +89,7 @@ void fzf_setup(char** ignore, int len)
 
 			if (skip) continue;
 
-			read_directory(child);
+			fzf_read_directory(child);
 			setup_recurse(child);
 		}
 	}
@@ -105,7 +97,7 @@ void fzf_setup(char** ignore, int len)
 	s_root = (fzf_dirnode){ .name = (fzf_string){ .str = ".", .len = 1 },
 		.children = NULL, .len = 0, .is_dir = 1 };
 
-	read_directory(&s_root);
+	fzf_read_directory(&s_root);
 	setup_recurse(&s_root);
 }
 

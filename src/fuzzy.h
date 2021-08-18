@@ -1,7 +1,5 @@
 #pragma once
 
-#include <string.h>
-
 #define MAX_RESULTS 40
 
 typedef struct
