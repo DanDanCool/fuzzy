@@ -1,6 +1,10 @@
 #include <sys/types.h>
 #include <dirent.h>
 
+#include <stdlib.h>
+#include <string.h>
+#include <stdio.h>
+
 #include "fuzzy.h"
 #include "filesystem.h"
 
@@ -16,7 +20,7 @@ static fzf_dirnode new_dirnode(fzf_dirnode* parent, struct dirent* dir_entry)
 	.children = NULL, .len = 0, .is_dir = is_dir };
 }
 
-void read_directory(fzf_dirnode* dir)
+void fzf_read_directory(fzf_dirnode* dir)
 {
 	DIR* directory = opendir(dir->name.str);
 	if (!directory)
