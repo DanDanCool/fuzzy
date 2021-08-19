@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.10)
 
 project(fuzzy LANGUAGES C)
 
-set(SOURCE_FILES src/fuzzy.c src/fuzzy.h src/filesystem.h)
+set(SOURCE_FILES src/fuzzy.c src/fuzzy.h src/platform.h)
 
 # set the different names here because on linux cmake likes to prepend 'lib'
 if(WIN32)
@@ -13,7 +13,6 @@ endif()
 if (UNIX)
 	list(APPEND SOURCE_FILES src/linux.c)
 	set(SHARED_LIB_NAME fuzzy)
-	add_compile_options(-g)
 endif()
 
 add_library(${SHARED_LIB_NAME} SHARED ${SOURCE_FILES})
@@ -21,7 +20,14 @@ set_target_properties(${SHARED_LIB_NAME} PROPERTIES PUBLIC_HEADER src/fuzzy.h)
 target_include_directories(${SHARED_LIB_NAME} PRIVATE ${PROJECT_SOURCE_DIR}/src)
 
 if(WIN32)
+	add_compile_definitions(FZF_WIN32)
 	set_target_properties(${SHARED_LIB_NAME} PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS TRUE)
+endif()
+
+if(UNIX)
+	add_compile_definitions(FZF_LINUX)
+	target_compile_options(${SHARED_LIB_NAME} PRIVATE -g -pthread)
+	target_link_libraries(${SHARED_LIB_NAME} pthread)
 endif()
 
 add_executable(main src/main.c)

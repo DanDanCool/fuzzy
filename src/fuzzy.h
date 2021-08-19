@@ -14,7 +14,8 @@ typedef struct
 	size_t len;
 } fzf_output;
 
-void fzf_setup(char** ignore, int len);
-fzf_output fzf_get_output(fzf_string* prompt);
+void fzf_init(char** ignore, int len);
+void fzf_start(fzf_string* prompt);
+fzf_output fzf_get_output();
 int fzf_char_match(fzf_string* s1, fzf_string* s2);
 int fzf_fuzzy_match(fzf_string* s1, fzf_string* s2);

@@ -9,5 +9,5 @@ Only tested on linux and windows, probably won't work on other platforms.
 
 # reasoning
 I was rewriting a bunch of vim plugins from scratch and the included vim plugin in fzf
-was good, but far too feature rich then I needed. Using ffi and lua a shared library
+was good, but far too feature rich than I needed. Using ffi and lua a shared library
 written in C can seamlessly integrate with neovim without the need for rpc.

@@ -2,7 +2,9 @@
 #include <string.h>
 
 #include "fuzzy.h"
-#include "filesystem.h"
+#include "platform.h"
+
+#include <unistd.h>
 
 int main(int argc, char** argv)
 {
@@ -15,14 +17,20 @@ int main(int argc, char** argv)
 		"../build"
 	};
 
-	fzf_setup(ignore, 1);
+	fzf_init(ignore, 1);
 
 	fzf_string input = (fzf_string){ .str = prompt, .len = strlen(prompt) };
-	fzf_output out = fzf_get_output(&input);
+	fzf_start(&input);
 
-	printf("results\n");
-	for (int i = 0; i < out.len; i++)
+	int count = 5;
+	while (count--)
 	{
-		printf("%s\n", out.results[i].str);
+		fzf_output out = fzf_get_output();
+
+		printf("results\n");
+		for (int i = 0; i < out.len; i++)
+		{
+			printf("%s\n", out.results[i].str);
+		}
 	}
 }

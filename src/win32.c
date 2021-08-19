@@ -1,10 +1,11 @@
 #include <windows.h>
 #include <fileapi.h>
+#include <processthreadsapi.h>
 
 #include <stdio.h>
 
 #include "fuzzy.h"
-#include "filesystem.h"
+#include "platform.h"
 
 static fzf_dirnode new_dirnode(fzf_dirnode* parent, WIN32_FIND_DATA* dir_entry)
 {
@@ -35,14 +36,15 @@ void fzf_read_directory(fzf_dirnode* dir)
 	while (FindNextFile(directory, &dir_entry))
 		count++;
 
-	dir->children = (fzf_dirnode*)malloc(count * sizeof(fzf_dirnode));
-	dir->len = count;
+	if (!count)
+		return;
 
 	// seems kind of bad... but I don't want to allocate more memory than required
 	FindClose(directory);
 	directory = FindFirstFile(search, &dir_entry);
 	FindNextFile(directory, &dir_entry);
 
+	dir->children = (fzf_dirnode*)malloc(count * sizeof(fzf_dirnode));
 	fzf_dirnode* child = dir->children;
 	while (FindNextFile(directory, &dir_entry))
 	{
@@ -52,4 +54,21 @@ void fzf_read_directory(fzf_dirnode* dir)
 
 	FindClose(directory);
 	free(search);
+	dir->len = count;
+}
+
+void* fzf_thread_create(fzf_start_routine start_routine, void* args)
+{
+	HANDLE thread = CreateThread(NULL, 0, start_routine, args, 0, NULL);
+	return (void*)thread;
+}
+
+void fzf_thread_detach(void* thread)
+{
+	CloseHandle((HANDLE)thread);
+}
+
+void fzf_thread_exit(fzf_retval retval)
+{
+	ExitThread(retval);
 }
