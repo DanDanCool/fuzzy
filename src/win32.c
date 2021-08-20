@@ -1,11 +1,18 @@
 #include <windows.h>
 #include <fileapi.h>
 #include <processthreadsapi.h>
+#include <synchapi.h>
 
+#include <string.h>
+#include <stdlib.h>
 #include <stdio.h>
 
 #include "fuzzy.h"
 #include "platform.h"
+
+// yeah I know this is really bad, but the alternative is QueueAPC and SleepEx
+// which will probably be worse
+static int s_signal = 0;
 
 static fzf_dirnode new_dirnode(fzf_dirnode* parent, WIN32_FIND_DATA* dir_entry)
 {
@@ -71,4 +78,45 @@ void fzf_thread_detach(void* thread)
 void fzf_thread_exit(fzf_retval retval)
 {
 	ExitThread(retval);
+}
+
+void fzf_thread_join(void* thread)
+{
+	WaitForSingleObject((HANDLE)thread, INFINITE);
+}
+
+void fzf_thread_cancel(void* thread)
+{
+	// we can get away with this because there will ALWAYS be one thread
+	s_signal = 1;
+}
+
+void fzf_thread_testcancel()
+{
+	if (s_signal)
+	{
+		s_signal = 0;
+		ExitThread(0);
+	}
+}
+
+void* fzf_mutex_create()
+{
+	HANDLE mutex = CreateMutex(NULL, 0, NULL);
+	return (void*)mutex;
+}
+
+void fzf_mutex_destroy(void* mutex)
+{
+	CloseHandle((HANDLE)mutex);
+}
+
+void fzf_mutex_lock(void* mutex)
+{
+	WaitForSingleObject((HANDLE)mutex, INFINITE);
+}
+
+void fzf_mutex_unlock(void* mutex)
+{
+	ReleaseMutex((HANDLE)mutex);
 }

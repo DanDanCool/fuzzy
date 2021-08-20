@@ -20,7 +20,7 @@ set_target_properties(${SHARED_LIB_NAME} PROPERTIES PUBLIC_HEADER src/fuzzy.h)
 target_include_directories(${SHARED_LIB_NAME} PRIVATE ${PROJECT_SOURCE_DIR}/src)
 
 if(WIN32)
-	add_compile_definitions(FZF_WIN32)
+	add_compile_definitions(FZF_WIN32 WIN32_LEAN_AND_MEAN)
 	set_target_properties(${SHARED_LIB_NAME} PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS TRUE)
 endif()
 
