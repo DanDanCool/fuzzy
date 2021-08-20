@@ -39,7 +39,7 @@ static void add_result(fzf_dirnode* node, int score)
 		s_results.scores[s_results.len].node = node;
 		s_results.scores[s_results.len].score = score;
 
-		int i = s_results.len;
+		size_t i = s_results.len;
 		while (i && score < s_results.greatest[i - 1]->score)
 		{
 			s_results.greatest[i] = s_results.greatest[i - 1];
@@ -52,7 +52,7 @@ static void add_result(fzf_dirnode* node, int score)
 	else if (score < s_results.greatest[s_results.len - 1]->score)
 	{
 		fzf_result* empty = s_results.greatest[s_results.len - 1];
-		int i = s_results.len - 1;
+		size_t i = s_results.len - 1;
 
 		while (i && score < s_results.greatest[i - 1]->score)
 		{
@@ -70,11 +70,11 @@ static void add_result(fzf_dirnode* node, int score)
 
 static fzf_string str_tolower(const char* str)
 {
-	int len = strlen(str);
+	size_t len = strlen(str);
 	char* lower = (char*)malloc(len + 1);
 	lower[len] = 0;
 
-	for (int i = 0; i < len; i++)
+	for (size_t i = 0; i < len; i++)
 		lower[i] = (char)tolower(str[i]);
 
 	return (fzf_string){ .str = lower, .len = len };
@@ -144,7 +144,7 @@ static void scores_recurse(fzf_dirnode* node, fzf_string* prompt)
 		}
 
 		fzf_string name = str_tolower(child->name.str);
-		int score = fzf_fuzzy_match(prompt, &name) - 2 * fzf_char_match(prompt, &name) - name.len / 2;
+		int score = fzf_fuzzy_match(prompt, &name) - 2 * fzf_char_match(prompt, &name) - (int)(name.len / 2);
 		add_result(child, score);
 		free(name.str);
 	}
@@ -166,7 +166,7 @@ static fzf_retval async_start(void* args)
 		}
 
 		fzf_string name = str_tolower(child->name.str);
-		int score = fzf_fuzzy_match(prompt, &name) - 2 * fzf_char_match(prompt, &name) - name.len / 2;
+		int score = fzf_fuzzy_match(prompt, &name) - 2 * fzf_char_match(prompt, &name) - (int)(name.len / 2);
 		add_result(child, score);
 		free(name.str);
 	}
@@ -200,8 +200,8 @@ fzf_output fzf_get_output()
 
 	fzf_mutex_lock(fzf_mutex);
 
-	int count = 0;
-	for (int i = s_results.len - 1; i >= 0; i--)
+	size_t count = 0;
+	for (size_t i = s_results.len - 1; i >= 0; i--)
 	{
 		fzf_dirnode* node = s_results.greatest[i]->node;
 		if (!node) continue;
@@ -236,10 +236,10 @@ int fzf_char_match(fzf_string* str1, fzf_string* str2)
 int fzf_fuzzy_match(fzf_string* str1, fzf_string* str2)
 {
 	if (str1->len == 0)
-		return str2->len;
+		return (int)str2->len;
 
 	if (str2->len == 0)
-		return str1->len;
+		return (int)str1->len;
 
 	size_t* edits = (size_t*)malloc((str2->len + 1) * sizeof(size_t));
 	for (size_t i = 0; i <= str2->len; i++)
