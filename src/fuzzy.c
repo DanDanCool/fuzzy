@@ -107,6 +107,8 @@ static void recurse_directories(fzf_dirnode* node, char** ignore, int len)
 
 static fzf_retval async_init(void* args)
 {
+	fzf_read_directory(&s_root);
+
 	fzf_setup_args* setup_args = (fzf_setup_args*)args;
 	recurse_directories(&s_root, setup_args->ignore, setup_args->len);
 
@@ -118,8 +120,6 @@ void fzf_init(char** ignore, int len)
 {
 	s_root = (fzf_dirnode){ .name = (fzf_string){ .str = ".", .len = 1 },
 		.children = NULL, .len = 0, .is_dir = 1 };
-
-	fzf_read_directory(&s_root);
 
 	fzf_setup_args* args = (fzf_setup_args*)malloc(sizeof(fzf_setup_args));
 	*args = (fzf_setup_args){ .ignore = ignore, .len = len };
@@ -135,7 +135,6 @@ static void scores_recurse(fzf_dirnode* node, fzf_string* prompt)
 	for (size_t i = 0; i < node->len; i++)
 	{
 		fzf_thread_testcancel();
-
 		fzf_dirnode* child = &node->children[i];
 
 		if (child->is_dir)
@@ -158,7 +157,6 @@ static fzf_retval async_start(void* args)
 	for (size_t i = 0; i < s_root.len; i++)
 	{
 		fzf_thread_testcancel();
-
 		fzf_dirnode* child = &s_root.children[i];
 
 		if (child->is_dir)

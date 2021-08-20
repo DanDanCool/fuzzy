@@ -5,7 +5,6 @@
 
 #include <string.h>
 #include <stdlib.h>
-#include <stdio.h>
 
 #include "fuzzy.h"
 #include "platform.h"
@@ -17,10 +16,14 @@ static int s_signal = 0;
 static fzf_dirnode new_dirnode(fzf_dirnode* parent, WIN32_FIND_DATA* dir_entry)
 {
 	int is_dir = dir_entry->dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY;
-	int len = strlen(dir_entry->cFileName) + parent->name.len + 1;
+	size_t dir_len = strlen(dir_entry->cFileName);
+	size_t len = dir_len + parent->name.len + 1;
 
 	char* name = (char*)malloc(len + 1);
-	sprintf(name, "%s/%s", parent->name.str, dir_entry->cFileName);
+	memcpy(name, parent->name.str, parent->name.len);
+	memcpy(name + parent->name.len + 1, dir_entry->cFileName, dir_len);
+	name[parent->name.len] = '/';
+	name[len] = 0;
 
 	return (fzf_dirnode){ .name = (fzf_string){ .str = name, .len = len },
 	.children = NULL, .len = 0, .is_dir = is_dir };
@@ -30,7 +33,8 @@ void fzf_read_directory(fzf_dirnode* dir)
 {
 	WIN32_FIND_DATA dir_entry;
 	char* search = (char*)malloc(dir->name.len + 3);
-	sprintf(search, "%s/*", dir->name.str);
+	memcpy(search, dir->name.str, dir->name.len);
+	memcpy(search + dir->name.len, "/*\0", 3);
 
 	// skip first two results since those seem to always be . and ..
 	HANDLE directory = FindFirstFile(search, &dir_entry);
@@ -83,6 +87,7 @@ void fzf_thread_exit(fzf_retval retval)
 void fzf_thread_join(void* thread)
 {
 	WaitForSingleObject((HANDLE)thread, INFINITE);
+	s_signal = 0;
 }
 
 void fzf_thread_cancel(void* thread)

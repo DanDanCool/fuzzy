@@ -4,7 +4,6 @@
 
 #include <string.h>
 #include <stdlib.h>
-#include <stdio.h>
 
 #include "fuzzy.h"
 #include "platform.h"
@@ -12,10 +11,14 @@
 static fzf_dirnode new_dirnode(fzf_dirnode* parent, struct dirent* dir_entry)
 {
 	int is_dir = dir_entry->d_type & DT_DIR;
-	int len = strlen(dir_entry->d_name) + parent->name.len + 1;
+	size_t dir_len = strlen(dir_entry->d_name);
+	size_t len = dir_len + parent->name.len + 1;
 
 	char* name = (char*)malloc(len + 1);
-	sprintf(name, "%s/%s", parent->name.str, dir_entry->d_name);
+	memcpy(name, parent->name.str, parent->name.len);
+	memcpy(name + parent->name.len + 1, dir_entry->d_name, dir_len);
+	name[parent->name.len] = '/';
+	name[len] = 0;
 
 	return (fzf_dirnode){ .name = (fzf_string){ .str = name, .len = len },
 	.children = NULL, .len = 0, .is_dir = is_dir };
