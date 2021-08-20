@@ -201,9 +201,9 @@ fzf_output fzf_get_output()
 	fzf_mutex_lock(fzf_mutex);
 
 	size_t count = 0;
-	for (size_t i = s_results.len - 1; i >= 0; i--)
+	for (size_t i = s_results.len; i > 0; i--)
 	{
-		fzf_dirnode* node = s_results.greatest[i]->node;
+		fzf_dirnode* node = s_results.greatest[i - 1]->node;
 		if (!node) continue;
 
 		*str = node->name;
