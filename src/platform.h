@@ -11,7 +11,7 @@ typedef struct fzf_dirnode
 } fzf_dirnode;
 
 #ifdef FZF_WIN32
-typedef int32_t fzf_retval;
+typedef uint32_t fzf_retval;
 #endif
 
 #ifdef FZF_LINUX

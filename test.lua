@@ -1,6 +1,6 @@
 local ffi = require('ffi')
 
-local lib = ffi.load('build/libfuzzy.so')
+local lib = ffi.load('build/release/libfuzzy.so')
 
 ffi.cdef[[
 	typedef struct
@@ -40,7 +40,7 @@ prompt[0].len = #'main'
 
 lib.fzf_start(prompt)
 
-for i = 0, 5 do
+for j = 0, 10 do
 local output = lib.fzf_get_output()
 local len = tonumber(output.len) - 1
 print(len)
