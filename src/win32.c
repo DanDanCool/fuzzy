@@ -92,7 +92,7 @@ void fzf_thread_join(void* thread)
 
 void fzf_thread_cancel(void* thread)
 {
-	// we can get away with this because there will ALWAYS be one thread
+	// we can get away with this because there will ALWAYS be one thread using this signal
 	s_signal = 1;
 }
 

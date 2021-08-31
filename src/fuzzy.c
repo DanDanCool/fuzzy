@@ -171,7 +171,6 @@ static fzf_retval async_start(void* args)
 		free(name.str);
 	}
 
-	fzf_thread = NULL;
 	fzf_thread_exit(0);
 }
 

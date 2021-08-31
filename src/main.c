@@ -17,7 +17,11 @@ int main(int argc, char** argv)
 
 	fzf_init(ignore, 1);
 
+    sleep(1);
+
 	fzf_string input = (fzf_string){ .str = prompt, .len = strlen(prompt) };
+	fzf_start(&input);
+	fzf_start(&input);
 	fzf_start(&input);
 
 	int count = 5;
