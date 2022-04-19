@@ -26,6 +26,14 @@ static struct
 	size_t len;
 } s_results;
 
+typedef struct
+{
+    fzf_string* data;
+    int len;
+    int sz;
+} vec_entry;
+
+static vec_entry s_entries;
 static fzf_dirnode s_root;
 static void* fzf_thread;
 static void* fzf_mutex;
