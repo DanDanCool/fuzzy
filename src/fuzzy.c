@@ -1,281 +1,126 @@
-#include <ctype.h>
-#include <string.h>
-#include <stdio.h>
-#include <stdlib.h>
-
 #include "fuzzy.h"
 #include "platform.h"
 
-// struct passed to async_setup()
-typedef struct
+// while most file system limit file names to 256 characters, 64 is correct enough, also convenient for avx
+#define STRING_LENGTH 64
+
+enum
 {
-	char** ignore;
-	int len;
-} fzf_setup_args;
+	STATE_NEW_PROMPT = 1 << 0,
+};
 
-typedef struct
+static thread s_thread;
+
+struct fzf_state
 {
-	fzf_dirnode* node;
-	int score;
-} fzf_result;
+	fzf_args args;
+	scheduler sched;
+	queue(mem_pool) str_allocator;
+	queue(mem_arena) allocator;
 
-static struct
+	_Atomic cstr raw_prompt;
+	vector(pstring) prompt;
+	_Atomic u32 flags;
+
+	path_ignore ignore;
+	vector(ppath) paths;
+	vector(ppath) total_scores; // heap of total path scores
+	hash_table(pstring, score) scores;
+};
+
+void state_init(fzf_state* state)
 {
-	fzf_result scores[MAX_RESULTS];
-	fzf_result* greatest[MAX_RESULTS];
-	size_t len;
-} s_results;
 
-typedef struct
+}
+
+void state_destroy(fzf_state** data)
 {
-    fzf_string* data;
-    int len;
-    int sz;
-} vec_entry;
+	fzf_state* state = *data;
 
-static vec_entry s_entries;
-static fzf_dirnode s_root;
-static void* fzf_thread;
-static void* fzf_mutex;
-
-static void add_result(fzf_dirnode* node, int score)
-{
-	fzf_mutex_lock(fzf_mutex);
-
-	if (s_results.len < MAX_RESULTS)
 	{
-		s_results.scores[s_results.len].node = node;
-		s_results.scores[s_results.len].score = score;
+		make_iterator(queue(mem_pool), iter, &state->str_allocator);
+		for_each(pool, iter)
+			pool_destroy(pool);
+	}
 
-		size_t i = s_results.len;
-		while (i && score < s_results.greatest[i - 1]->score)
+	{
+		make_iterator(queue(mem_arena), iter, &state->allocator);
+		for_each(arena, iter)
+			arena_destroy(arena);
+	}
+
+	vector_destroy(ppath)(&state->ignore.paths);
+	vector_destroy(u8)(&state->ignore.flags);
+	vector_destroy(ppath)(&state->paths);
+	vector_destroy(ppath)(&total_scores);
+	table_destroy(pstring, score)(&scores);
+	free(state);
+}
+
+void main_thread(thread* t)
+{
+	MEM_GUARD(fzf_state*, state_destroy) state = (fzf_state*)t->data;
+
+	// look through ignore
+	// start recursing over directories
+
+	while (true)
+	{
+		thread_trykill(t);
+		thread_trypause(t);
+
+		// prompt received
+		if (!spinlock_trywait(&state->flags, STATE_NEW_PROMPT))
 		{
-			s_results.greatest[i] = s_results.greatest[i - 1];
-			i--;
+
 		}
 
-		s_results.greatest[i] = &s_results.scores[s_results.len];
-		s_results.len++;
-	}
-	else if (score < s_results.greatest[s_results.len - 1]->score)
-	{
-		fzf_result* empty = s_results.greatest[s_results.len - 1];
-		size_t i = s_results.len - 1;
+		spinlock_signal(&state->flags, STATE_NEW_PROMPT);
 
-		while (i && score < s_results.greatest[i - 1]->score)
-		{
-			s_results.greatest[i] = s_results.greatest[i - 1];
-			i--;
-		}
+		// request for scores
 
-		s_results.greatest[i] = empty;
-		s_results.greatest[i]->score = score;
-		s_results.greatest[i]->node = node;
-	}
-
-	fzf_mutex_unlock(fzf_mutex);
-}
-
-static fzf_string str_tolower(const char* str)
-{
-	size_t len = strlen(str);
-	char* lower = (char*)malloc(len + 1);
-	lower[len] = 0;
-
-	for (size_t i = 0; i < len; i++)
-		lower[i] = (char)tolower(str[i]);
-
-	return (fzf_string){ .str = lower, .len = len };
-}
-
-static void recurse_directories(fzf_dirnode* node, char** ignore, int len)
-{
-	for (size_t i = 0; i < node->len; i++)
-	{
-		fzf_dirnode* child = &node->children[i];
-
-		if (!child->is_dir) continue;
-
-		int skip = 0;
-		for (int i = 0; i < len; i++)
-		{
-			if (!strcmp(ignore[i], child->name.str))
-			{
-				skip = 1;
-				break;
-			}
-		}
-
-		if (skip) continue;
-
-		fzf_read_directory(child);
-		recurse_directories(child, ignore, len);
+		thread_yield(t);
 	}
 }
 
-static fzf_retval async_init(void* args)
+void fzf_init(fzf_args* args)
 {
-	fzf_read_directory(&s_root);
+	fzf_state* state = (fzf_state*)jolly_alloc(sizeof(fzf_state));
+	*state = {};
+	state->args = *args;
+	state->args.ignore = cstr_copy(args->ignore);
 
-	fzf_setup_args* setup_args = (fzf_setup_args*)args;
-	recurse_directories(&s_root, setup_args->ignore, setup_args->len);
-
-	free(setup_args);
-	fzf_thread_exit(0);
+	s_thread = {};
+	s_thread.task = main_thread;
+	s_thread.data = (void*)state;
+	thread_create(&s_thread, THREAD_KILL | THREAD_PAUSE);
+	thread_start(&s_thread);
 }
 
-void fzf_init(char** ignore, int len)
+void fzf_destroy()
 {
-	s_root = (fzf_dirnode){ .name = (fzf_string){ .str = ".", .len = 1 },
-		.children = NULL, .len = 0, .is_dir = 1 };
-
-	fzf_setup_args* args = (fzf_setup_args*)malloc(sizeof(fzf_setup_args));
-	*args = (fzf_setup_args){ .ignore = ignore, .len = len };
-
-	void* thread = fzf_thread_create(async_init, (void*)args);
-	fzf_thread_detach(thread);
-
-	fzf_mutex = fzf_mutex_create();
+	// cleanup handled in thread
+	thread_kill(&s_thread);
 }
 
-static void scores_recurse(fzf_dirnode* node, fzf_string* prompt)
+void fzf_start(cstr prompt, u32 size)
 {
-	for (size_t i = 0; i < node->len; i++)
-	{
-		fzf_thread_testcancel();
-		fzf_dirnode* child = &node->children[i];
+	fzf_state* state = (fzf_state*)s_thread.data;
 
-		if (child->is_dir)
-		{
-			scores_recurse(child, prompt);
-			continue;
-		}
+	cstr copy = (cstr)jolly_alloc(size);
+	vector(u8) dst = { copy, 0, size };
+	vector(u8) src = { prompt, 0, size };
+	cstr old = atomic_exchange_explicit(&state->prompt, copy, memory_order_relaxed);
+	spinlock_wait(&state->flags, STATE_NEW_PROMPT);
 
-		fzf_string name = str_tolower(child->name.str);
-		int score = fzf_fuzzy_match(prompt, &name) - 2 * fzf_char_match(prompt, &name) - (int)(name.len / 2);
-		add_result(child, score);
-		free(name.str);
-	}
+	free(old);
 }
 
-static fzf_retval async_start(void* args)
+void fzf_scores(vector_ppath* v)
 {
-	fzf_string* prompt = (fzf_string*)args;
+	fzf_state* state = (fzf_state*)s_thread.data;
 
-	for (size_t i = 0; i < s_root.len; i++)
-	{
-		fzf_thread_testcancel();
-		fzf_dirnode* child = &s_root.children[i];
-
-		if (child->is_dir)
-		{
-			scores_recurse(child, prompt);
-			continue;
-		}
-
-		fzf_string name = str_tolower(child->name.str);
-		int score = fzf_fuzzy_match(prompt, &name) - 2 * fzf_char_match(prompt, &name) - (int)(name.len / 2);
-		add_result(child, score);
-		free(name.str);
-	}
-
-	fzf_thread_exit(0);
-}
-
-void fzf_start(fzf_string* prompt)
-{
-	if (fzf_thread)
-	{
-		fzf_thread_cancel(fzf_thread);
-		fzf_thread_join(fzf_thread);
-	}
-
-	memset(&s_results, 0, sizeof(s_results));
-	s_results.scores[0].node = NULL;
-	s_results.scores[0].score = 9999;
-	s_results.greatest[0] = &s_results.scores[0];
-	s_results.len++;
-
-	fzf_thread = fzf_thread_create(async_start, (void*)prompt);
-	fzf_thread_detach(fzf_thread);
-}
-
-fzf_output fzf_get_output()
-{
-	fzf_output out;
-	fzf_string* str = out.results;
-
-	fzf_mutex_lock(fzf_mutex);
-
-	size_t count = 0;
-	for (size_t i = s_results.len; i > 0; i--)
-	{
-		fzf_dirnode* node = s_results.greatest[i - 1]->node;
-		if (!node) continue;
-
-		*str = node->name;
-		count++;
-		str++;
-	}
-
-	fzf_mutex_unlock(fzf_mutex);
-
-	out.len = count;
-	return out;
-}
-
-int fzf_char_match(fzf_string* str1, fzf_string* str2)
-{
-	char chars[256];
-	memset(chars, 0, 256);
-
-	for (int i = 0; i < str2->len; i++)
-		chars[str2->str[i]] = 1;
-
-	int matches = 0;
-	for (int i = 0; i < str1->len; i++)
-		matches += chars[str1->str[i]];
-
-	return matches;
-}
-
-// implements levenshtein distance
-int fzf_fuzzy_match(fzf_string* str1, fzf_string* str2)
-{
-	if (str1->len == 0)
-		return (int)str2->len;
-
-	if (str2->len == 0)
-		return (int)str1->len;
-
-	size_t* edits = (size_t*)malloc((str2->len + 1) * sizeof(size_t));
-	for (size_t i = 0; i <= str2->len; i++)
-		edits[i] = i;
-
-	for (int i = 0; i < str1->len; i++)
-	{
-		size_t corner = i;
-		edits[0] = i + 1;
-
-		for (int j = 0; j < str2->len; j++)
-		{
-			size_t upper = edits[j + 1];
-			if (str1->str[i] == str2->str[j])
-			{
-				edits[j + 1] = corner;
-			}
-			else
-			{
-				size_t min = corner > upper ? upper : corner;
-				edits[j + 1] = (min > edits[j] ? edits[j] : min) + 1;
-			}
-
-			corner = upper;
-		}
-	}
-
-	int result = (int)edits[str2->len];
-	free(edits);
-
-	return result;
+	vector(u8) dst = { (u8*)vector_at(ppath)(v, 0), 0, v->reserve };
+	vector(u8) src = { (u8*)vector_at(ppath)(&state->total_scores, 0), 0, state->total_scores.size };
+	vector_cpy8(&dst, &src);
 }

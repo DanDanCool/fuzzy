@@ -1,21 +1,43 @@
 #pragma once
 
-#define MAX_RESULTS 40
+typedef struct string string;
+typedef string* pstring;
+typedef struct path path;
+typedef path* ppath;
+typedef struct score score;
+typedef struct path_ignore path_ignore;
 
-typedef struct
+struct string
 {
-	char* str;
-	size_t len;
-} fzf_string;
+	char buf[STRING_LENGTH];
+};
 
-typedef struct
+struct path
 {
-	fzf_string results[MAX_RESULTS];
-	size_t len;
-} fzf_output;
+	vector(pstring) subpaths;
+};
 
-void fzf_init(char** ignore, int len);
-void fzf_start(fzf_string* prompt);
-fzf_output fzf_get_output();
-int fzf_char_match(fzf_string* s1, fzf_string* s2);
-int fzf_fuzzy_match(fzf_string* s1, fzf_string* s2);
+struct score
+{
+	u16 fuzzy;
+};
+
+struct path_ignore
+{
+	vector(ppath) paths;
+	vector(u8) flags;
+};
+
+typedef struct fzf_args fzf_args;
+struct fzf_args
+{
+	cstr ignore;
+	u8 max_results;
+	u8 bfs_depth;
+};
+
+// ignores paths/files in .gitignore whose path is provided by ignore
+void fzf_init(fzf_args* args);
+void fzf_destroy();
+void fzf_start(cstr prompt, u32 size);
+void fzf_scores(vector_ppath* v);

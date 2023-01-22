@@ -21,8 +21,6 @@ int main(int argc, char** argv)
 
 	fzf_string input = (fzf_string){ .str = prompt, .len = strlen(prompt) };
 	fzf_start(&input);
-	fzf_start(&input);
-	fzf_start(&input);
 
 	int count = 5;
 	while (count--)
