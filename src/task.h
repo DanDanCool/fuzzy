@@ -5,8 +5,7 @@ typedef struct in_pathtraverse in_pathtraverse;
 typedef struct in_score in_score;
 typedef struct in_accumulate in_accumulate;
 
-struct in_gitignore
-{
+struct in_gitignore {
 	mem_pool* in_strallocator;
 	mem_arena* in_allocator;
 	path_ignore out_ignore;
@@ -15,8 +14,7 @@ struct in_gitignore
 // looks through gitignore, adds ignore paths
 void gitignore_task(void* in);
 
-struct in_pathtraverse
-{
+struct in_pathtraverse {
 	mem_pool* in_strallocator;
 	mem_arena* in_allocator;
 	vector(pstring) out_strings;
@@ -27,8 +25,7 @@ struct in_pathtraverse
 // finds paths
 void pathtraverse_task(void* in);
 
-struct in_score
-{
+struct in_score {
 	vector(pstring)* in_prompt;
 	vector(pstring) in_strings;
 	vector(score) out_scores;
@@ -37,8 +34,7 @@ struct in_score
 // scores strings
 void score_task(void* in);
 
-struct in_accumulate
-{
+struct in_accumulate {
 	hash_table(pstring, score)* in_scores;
 	vector(ppath) in_paths;
 	vector(ppath) out_totalscores; // heap

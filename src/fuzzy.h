@@ -7,30 +7,25 @@ typedef path* ppath;
 typedef struct score score;
 typedef struct path_ignore path_ignore;
 
-struct string
-{
+struct string {
 	char buf[STRING_LENGTH];
 };
 
-struct path
-{
+struct path {
 	vector(pstring) subpaths;
 };
 
-struct score
-{
+struct score {
 	u16 fuzzy;
 };
 
-struct path_ignore
-{
+struct path_ignore {
 	vector(ppath) paths;
 	vector(u8) flags;
 };
 
 typedef struct fzf_args fzf_args;
-struct fzf_args
-{
+struct fzf_args {
 	cstr ignore;
 	u8 max_results;
 	u8 bfs_depth;
