@@ -1,36 +1,19 @@
 #include <stdio.h>
-#include <string.h>
 
-#include "fuzzy.h"
-#include "platform.h"
+#include "vector.h"
 
-int main(int argc, char** argv)
-{
+int main(int argc, char** argv) {
 	char* prompt = "cmake";
 
 	if (argc > 1)
 		prompt = argv[1];
 
-	char* ignore[] = {
-		"../build"
-	};
+	vector(i32) v;
+	vector_create(i32)(&v, 0);
 
-	fzf_init(ignore, 1);
-
-    sleep(1);
-
-	fzf_string input = (fzf_string){ .str = prompt, .len = strlen(prompt) };
-	fzf_start(&input);
-
-	int count = 5;
-	while (count--)
-	{
-		fzf_output out = fzf_get_output();
-
-		printf("results\n");
-		for (int i = 0; i < out.len; i++)
-		{
-			printf("%s\n", out.results[i].str);
-		}
+	for (i32 i = 0; i < 100; i++) {
+		vector_add(i32)(&v, &i);
 	}
+
+	vector_destroy(i32)(v);
 }

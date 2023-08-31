@@ -1,0 +1,3 @@
+[submodule "lib/jollyc"]
+	path = lib/jollyc
+	url = https://github.com/DanDanCool/jollyc
