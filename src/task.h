@@ -1,43 +1,52 @@
 #pragma once
 
-typedef struct in_gitignore in_gitignore;
+#include <vector.h>
+#include <table.h>
+
+#include "fuzzy.h"
+
 typedef struct in_pathtraverse in_pathtraverse;
 typedef struct in_score in_score;
 typedef struct in_accumulate in_accumulate;
 
-struct in_gitignore {
-	mem_pool* in_strallocator;
-	mem_arena* in_allocator;
-	path_ignore out_ignore;
-};
-
-// looks through gitignore, adds ignore paths
-void gitignore_task(void* in);
+typedef struct fzf_state fzf_state;
+typedef void (*pfn_callback)(fzf_state* state, void* args);
 
 struct in_pathtraverse {
-	mem_pool* in_strallocator;
-	mem_arena* in_allocator;
-	vector(pstring) out_strings;
-	vector(ppath) out_directories; // should initalize with desired paths to traverse
+	pfn_callback callback;
+	ppath in_dir;
+	vector(ppath) out_dirs;
 	vector(ppath) out_paths;
+	u32 id;
 };
 
 // finds paths
 void pathtraverse_task(void* in);
 
 struct in_score {
-	vector(pstring)* in_prompt;
-	vector(pstring) in_strings;
+	pfn_callback callback;
+	vector(string) in_prompt;
+	vector(string) in_strings;
 	vector(score) out_scores;
+	u32 id;
 };
 
 // scores strings
 void score_task(void* in);
 
+PAIR_DECLARE(score, ppath);
+typedef pair(score, ppath) pairsp;
+
+VECTOR_DECLARE(pairsp);
+HEAP_DECLARE(pairsp);
+
 struct in_accumulate {
-	hash_table(pstring, score)* in_scores;
+	pfn_callback callback;
+	vector(pairsp) out_scores; // heap
 	vector(ppath) in_paths;
-	vector(ppath) out_totalscores; // heap
+	table(string, score)* in_scores;
+	u32 in_count; // how many entries to return
+	u32 id;
 };
 
 // accumulates scores and orders them through a heap

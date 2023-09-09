@@ -1,66 +1,106 @@
 #include "task.h"
+#include "platform.h"
+#include "score.h"
+#include "fuzzy.h"
 
-void gitignore_task(void* in)
-{
-	in_gitignore* data = (in_gitignore*)in;
-}
+void pathtraverse_task(void* in) {
+	in_pathtraverse* args = (in_pathtraverse*)in;
 
-void pathtraverse_task(void* in)
-{
-	in_pathtraverse* data = (in_pathtraverse*)in;
+	path tmp = { args->in_dir, string_create("*") };
+	vector(string) dirs, paths;
+	vector_create(string)(&paths, 0);
+	vector_create(string)(&dirs, 0);
+	read_directory(str(path)(&tmp), &dirs, &paths);
+	string_destroy(&tmp.name);
 
-	queue(ppath) directories = { data->out_paths, 0, data->out_paths.size };
-	MEM_GUARD(vector(u8), vector_destroy(u8)) pathstr;
-	vector_init(u8)(&pathstr, jolly_alloc(256), 256);
+	for (u32 i = 0; i < dirs.size; i++) {
+		path* p = path_create(*vector_at(string)(&dirs, i), args->in_dir);
+		vector_add(ppath)(&args->out_dirs, &p);
+	}
 
-	for (u32 i = data->out_paths.size; i < data->out_paths.reserve; i++)
-	{
-		ppath path = *queue_pop(ppath)(&directories);
-		pathtostr(&path, &pathstr);
+	for (u32 i = 0; i < paths.size; i++) {
+		path* p = path_create(*vector_at(string)(&paths, i), args->in_dir);
+		vector_add(ppath)(&args->out_paths, &p);
 	}
 }
 
-void score_task(void* in)
-{
-	in_score* data = (in_score*)in;
+void score_task(void* in) {
+	in_score* args = (in_score*)in;
+	vector(string)* in_prompt = &args->in_prompt;
+	vector(string)* in_strings = &args->in_strings;
 
-	make_iterator(vector(pstring), iter, &data->in_strings);
-	for_each (string, iter);
-	{
-
-		vector_add(score)(&data->out_scores, score);
-	}
-}
-
-void accumulate_task(void* in)
-{
-	in_accumulate* data = (in_accumulate*)in;
-
-	make_iterator(vector(ppath), iter, &data->in_paths)
-	for_each (path, iter)
-	{
-
-		heap_replace(&data->out_total_scores, score);
-	}
-}
-
-static void scores_recurse(fzf_dirnode* node, fzf_string* prompt)
-{
-	for (size_t i = 0; i < node->len; i++)
-	{
-		fzf_thread_testcancel();
-		fzf_dirnode* child = &node->children[i];
-
-		if (child->is_dir)
-		{
-			scores_recurse(child, prompt);
-			continue;
+	for (u32 i = 0; i < in_strings->size; i++) {
+		string str = *vector_at(string)(in_strings, i);
+		score s = { 0 };
+		s.fuzzy = U16_MAX;
+		for (u32 j = 0; j < in_prompt->size; j++) {
+			string prompt = *vector_at(string)(in_prompt, j);
+			score res = { fuzzy_match(prompt, str) };
+			s.fuzzy = MIN(s.fuzzy, res.fuzzy);
 		}
 
-		fzf_string name = str_tolower(child->name.str);
-		int score = fzf_fuzzy_match(prompt, &name) - 2 * fzf_char_match(prompt, &name) - (int)(name.len / 2);
-		add_result(child, score);
-		free(name.str);
+		vector_add(score)(&args->out_scores, &s);
 	}
 }
 
+static score score_tally(table(string, score)* scores, ppath path);
+
+void accumulate_task(void* in) {
+	in_accumulate* args = (in_accumulate*)in;
+	vector(ppath)* in_paths = &args->in_paths;
+
+	vector(pairsp) scores;
+	vector_create(pairsp)(&scores, 0);
+
+	for (u32 i = 0; i < in_paths->size; i++) {
+		pairsp tmp = { 0 };
+		ppath p = *vector_at(ppath)(in_paths, i);
+		tmp.first = score_tally(args->in_scores, p);
+		tmp.second = p;
+
+		if (scores.size < args->in_count) {
+			heap_add(pairsp)(&scores, &tmp);
+		} else {
+			heap_replace(pairsp)(&scores, &tmp);
+		}
+	}
+
+	args->out_scores = scores;
+}
+
+static score score_tally(table(string, score)* scores, ppath path) {
+	const u16 DIRECTORY_MULTIPLIER = 4;
+	score res = *table_get(string, score)(scores, path->name);
+
+	path = path->parent;
+	while (path) {
+		score* s = table_get(string, score)(scores, path->name);
+		u32 fuzzy = s ? s->fuzzy : 4;
+		res.fuzzy += s->fuzzy / DIRECTORY_MULTIPLIER;
+		path = path->parent;
+	}
+
+	return res;
+}
+
+int lt(pairsp)(pairsp* a, pairsp* b) {
+	return a->first.fuzzy < b->first.fuzzy;
+}
+
+int _lt(pairsp)(u8* a, u8* b) {
+	return lt(pairsp)((pairsp*)a, (pairsp*)b);
+}
+
+int le(pairsp)(pairsp* a, pairsp* b) {
+	return a->first.fuzzy <= b->first.fuzzy;
+}
+
+int _le(pairsp)(u8* a, u8* b) {
+	return le(pairsp)((pairsp*)a, (pairsp*)b);
+}
+
+COPY_DEFINE(pairsp);
+SWAP_DEFINE(pairsp);
+
+VECTOR_DEFINE(pairsp);
+HEAP_DEFINE(pairsp);

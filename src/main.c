@@ -1,19 +1,30 @@
 #include <stdio.h>
+#include <vector.h>
 
-#include "vector.h"
+#include "fuzzy.h"
+
+#include <Windows.h>
+#include <synchapi.h>
 
 int main(int argc, char** argv) {
-	char* prompt = "cmake";
+	fzf_init();
+	const char* prompt = "fuzzy";
 
-	if (argc > 1)
-		prompt = argv[1];
+	fzf_start(prompt);
 
-	vector(i32) v;
-	vector_create(i32)(&v, 0);
+	while (true) {
+		vector(string) paths = fzf_scores();
 
-	for (i32 i = 0; i < 100; i++) {
-		vector_add(i32)(&v, &i);
+		paths = fzf_paths();
+		for (u32 i = 0; i < paths.size; i++) {
+			string* p = vector_at(string)(&paths, i);
+			printf("%s\n", (char*)p->data);
+			string_destroy(p);
+		}
+
+		fzf_cleanup(paths.data);
+		Sleep(1000);
 	}
 
-	vector_destroy(i32)(v);
+	fzf_term();
 }

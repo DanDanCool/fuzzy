@@ -1,38 +1,46 @@
 #pragma once
 
-typedef struct string string;
-typedef string* pstring;
+#include <strlib.h>
+#include <vector.h>
+#include <macros.h>
+
 typedef struct path path;
 typedef path* ppath;
 typedef struct score score;
 typedef struct path_ignore path_ignore;
 
-struct string {
-	char buf[STRING_LENGTH];
+struct path {
+	path* parent;
+	string name;
 };
 
-struct path {
-	vector(pstring) subpaths;
-};
+STR_DECLARE(path);
+VECTOR_DECLARE(ppath);
+
+path* path_create(string name, path* parent);
+void path_destroy(path* p);
 
 struct score {
 	u16 fuzzy;
 };
 
-struct path_ignore {
-	vector(ppath) paths;
-	vector(u8) flags;
-};
+VECTOR_DECLARE(score);
+STRTABLE_DECLARE(score);
 
-typedef struct fzf_args fzf_args;
-struct fzf_args {
-	cstr ignore;
-	u8 max_results;
-	u8 bfs_depth;
-};
+JOLLY_API
+void fzf_init();
 
-// ignores paths/files in .gitignore whose path is provided by ignore
-void fzf_init(fzf_args* args);
-void fzf_destroy();
-void fzf_start(cstr prompt, u32 size);
-void fzf_scores(vector_ppath* v);
+JOLLY_API
+void fzf_term();
+
+JOLLY_API
+void fzf_start(cstr prompt);
+
+JOLLY_API
+vector(string) fzf_scores();
+
+JOLLY_API
+vector(string) fzf_paths();
+
+JOLLY_API
+void fzf_cleanup(u8* memory);
