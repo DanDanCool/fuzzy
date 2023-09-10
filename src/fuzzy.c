@@ -56,7 +56,6 @@ typedef struct fzf_state fzf_state;
 struct fzf_state {
 	string rawprompt;
 	vector(string) prompt;
-	vector(string) waitscore;
 	vector(ppath) paths;
 	vector(ppath) dirs;
 	vector(pairsp) matches;
@@ -78,7 +77,6 @@ fzf_state* state_create() {
 
 	state->rawprompt = string_create("");
 	vector_create(string)(&state->prompt, 0);
-	vector_create(string)(&state->waitscore, 0);
 	vector_create(ppath)(&state->paths, 0);
 	vector_create(ppath)(&state->dirs, 0);
 	vector_create(pairsp)(&state->matches, 0);
@@ -116,7 +114,6 @@ void state_destroy(fzf_state* state) {
 	atomic_store_explicit(&state->run, 0, memory_order_relaxed);
 	thread_join(state->thread);
 	vector_destroy(string)(&state->prompt);
-	vector_destroy(string)(&state->waitscore);
 	vector_destroy(ppath)(&state->paths);
 	vector_destroy(ppath)(&state->dirs);
 	vector_destroy(pairsp)(&state->matches);
@@ -141,11 +138,14 @@ int main_thread(void* in) {
 	scheduler_create(&sched, 4);
 
 	u32 run = atomic_load_explicit(&state->run, memory_order_relaxed);
-
-	u32 waitidx = 0;
 	u32 pathidx = 0;
 
+	const u32 MAX_BACKOFF = 256;
+	const u32 INITIAL_BACKOFF = 64;
+	u32 backoff = INITIAL_BACKOFF;
+
 	while (run) {
+		int stall = true;
 		u32 next = atomic_load_explicit(&state->next, memory_order_acquire);
 		mutex_acquire(state->lock);
 
@@ -153,10 +153,12 @@ int main_thread(void* in) {
 			scheduler_waitall(&sched);
 			vector_destroy(string)(&state->prompt);
 			state->prompt = string_split(state->rawprompt, "/");
+			table_clear(string, score)(&state->scores);
 			state->matches.size = 0;
 			state->id = next;
 
-			waitidx = 0;
+			backoff = INITIAL_BACKOFF;
+			stall = false;
 			pathidx = 0;
 		}
 
@@ -168,6 +170,7 @@ int main_thread(void* in) {
 			free8(info);
 
 			info = queue_del(taskinfo)(&sched.done);
+			stall = false;
 		}
 
 		u32 count = MIN(TASK_LIMIT, state->dirs.size);
@@ -185,29 +188,7 @@ int main_thread(void* in) {
 			task->args = (void*)args;
 
 			scheduler_submit(&sched, task);
-		}
-
-		for (u32 i = 0; i < TASK_LIMIT; i++) {
-			if (state->prompt.size == 0) break;
-			if (waitidx >= state->waitscore.size) break;
-			if (!scheduler_cansubmit(&sched)) break;
-			in_score* args = (in_score*)alloc8(sizeof(in_score)).data;
-			args->callback = score_callback;
-			args->in_prompt = state->prompt;
-			vector_create(string)(&args->in_strings, SCORE_LIMIT);
-			vector_create(score)(&args->out_scores, SCORE_LIMIT);
-			args->id = state->id;
-
-			u32 limit = MIN(state->waitscore.size, waitidx + SCORE_LIMIT);
-			for (; waitidx < limit; waitidx++) {
-				vector_add(string)(&args->in_strings, vector_at(string)(&state->waitscore, waitidx));
-			}
-
-			taskinfo* task = (taskinfo*)alloc8(sizeof(taskinfo)).data;
-			task->task = score_task;
-			task->args = (void*)args;
-
-			scheduler_submit(&sched, task);
+			stall = false;
 		}
 
 		for (u32 i = 0; i < TASK_LIMIT; i++) {
@@ -216,11 +197,17 @@ int main_thread(void* in) {
 			if (!scheduler_cansubmit(&sched)) break;
 			in_accumulate* args = (in_accumulate*)alloc8(sizeof(in_accumulate)).data;
 			args->callback = accumulate_callback;
-			args->in_count = ACCUMULATE_LIMIT;
-			args->in_scores = &state->scores;
-			args->id = state->id;
-			vector_create(pairsp)(&args->out_scores, ACCUMULATE_LIMIT);
+
+			vector_create(string)(&args->out_strings, 0);
+			vector_create(score)(&args->out_scores, 0);
+			vector_create(pairsp)(&args->out_matches, ACCUMULATE_LIMIT);
+
 			vector_create(ppath)(&args->in_paths, ACCUMULATE_LIMIT);
+			args->in_prompt = state->prompt;
+			args->in_scores = &state->scores;
+
+			args->in_count = ACCUMULATE_LIMIT;
+			args->id = state->id;
 
 			u32 limit = MIN(state->paths.size, pathidx + ACCUMULATE_LIMIT);
 			for (; pathidx < limit; pathidx++) {
@@ -232,10 +219,17 @@ int main_thread(void* in) {
 			task->args = (void*)args;
 
 			scheduler_submit(&sched, task);
+			stall = false;
 		}
 
 		mutex_release(state->lock);
 		run = atomic_load_explicit(&state->run, memory_order_relaxed);
+
+		if (!stall) thread_yield();
+		else {
+			thread_sleep(backoff);
+			backoff = MIN(MAX_BACKOFF, backoff * 2);
+		}
 	}
 
 	scheduler_destroy(&sched);
@@ -300,53 +294,45 @@ void pathtraverse_callback(fzf_state* state, void* in) {
 	for (u32 i = 0; i < args->out_dirs.size; i++) {
 		ppath p = *vector_at(ppath)(&args->out_dirs, i);
 		vector_add(ppath)(&state->dirs, &p);
-		vector_add(string)(&state->waitscore, &p->name);
 	}
 
 	for (u32 i = 0; i < args->out_paths.size; i++) {
 		ppath p = *vector_at(ppath)(&args->out_paths, i);
 		vector_add(ppath)(&state->paths, &p);
-		vector_add(string)(&state->waitscore, &p->name);
 	}
 
 	vector_destroy(ppath)(&args->out_dirs);
 	vector_destroy(ppath)(&args->out_paths);
 }
 
-void score_callback(fzf_state* state, void* in) {
-	in_score* args = (in_score*)in;
-
-	if (state->id == args->id) {
-		for (u32 i = 0; i < args->out_scores.size; i++) {
-			string key = *vector_at(string)(&args->in_strings, i);
-			score* val = vector_at(score)(&args->out_scores, i);
-			table_set(string, score)(&state->scores, key, val);
-		}
-	}
-
-	vector_destroy(string)(&args->in_strings);
-	vector_destroy(score)(&args->out_scores);
-}
-
 void accumulate_callback(fzf_state* state, void* in) {
 	in_accumulate* args = (in_accumulate*)in;
+	vector(pairsp)* matches = &args->out_matches;
 
 	const u32 MAX_RESULTS = 64;
 
 	if (state->id == args->id) {
-		u32 count = args->out_scores.size;
+		u32 count = matches->size;
 		for (u32 i = 0; i < count; i++) {
-			pairsp* p = heap_del(pairsp)(&args->out_scores, 0);
+			pairsp* p = heap_del(pairsp)(matches, 0);
 			if (state->matches.size < MAX_RESULTS) {
 				heap_add(pairsp)(&state->matches, p);
 			} else {
 				heap_replace(pairsp)(&state->matches, p);
 			}
 		}
+
+		count = args->out_strings.size;
+		for (u32 i = 0; i < count; i++) {
+			string key = *vector_at(string)(&args->out_strings, i);
+			table_set(string, score)(&state->scores, key, vector_at(score)(&args->out_scores, i));
+		}
 	}
 
+	vector_destroy(string)(&args->out_strings);
+	vector_destroy(score)(&args->out_scores);
+	vector_destroy(pairsp)(&args->out_matches);
 	vector_destroy(ppath)(&args->in_paths);
-	vector_destroy(pairsp)(&args->out_scores);
 }
 
 COPY_DEFINE(ppath);

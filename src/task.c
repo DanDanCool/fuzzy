@@ -30,74 +30,62 @@ void pathtraverse_task(void* in) {
 	vector_destroy(string)(&dirs);
 }
 
-void score_task(void* in) {
-	in_score* args = (in_score*)in;
-	vector(string)* in_prompt = &args->in_prompt;
-	vector(string)* in_strings = &args->in_strings;
+const u16 DEFAULT_SCORE = 32;
 
-	for (u32 i = 0; i < in_strings->size; i++) {
-		string str = *vector_at(string)(in_strings, i);
-		score s = { 0 };
-		s.fuzzy = U16_MAX;
-		for (u32 j = 0; j < in_prompt->size; j++) {
-			string prompt = *vector_at(string)(in_prompt, j);
-			score res = { fuzzy_match(prompt, str) };
-			s.fuzzy = MIN(s.fuzzy, res.fuzzy);
-		}
-
-		vector_add(score)(&args->out_scores, &s);
-	}
-}
-
-static score score_tally(table(string, score)* scores, ppath path);
-
-void accumulate_task(void* in) {
-	in_accumulate* args = (in_accumulate*)in;
-	vector(ppath)* in_paths = &args->in_paths;
-
-	vector(pairsp) scores;
-	vector_create(pairsp)(&scores, 0);
-
-	for (u32 i = 0; i < in_paths->size; i++) {
-		pairsp tmp = { 0 };
-		ppath p = *vector_at(ppath)(in_paths, i);
-		tmp.first = score_tally(args->in_scores, p);
-		tmp.second = p;
-
-		if (scores.size < args->in_count) {
-			heap_add(pairsp)(&scores, &tmp);
-		} else {
-			heap_replace(pairsp)(&scores, &tmp);
-		}
-	}
-
-	args->out_scores = scores;
-}
-
-static score score_tally(table(string, score)* scores, ppath path) {
-	const u16 DIRECTORY_MULTIPLIER = 4;
-	score* tmp = table_get(string, score)(scores, path->name);
-	score res = {0};
-	if (!tmp) {
-		res.fuzzy = U16_MAX;
-		return res;
-	}
-
-	res = *tmp;
-	path = path->parent;
-	while (path) {
-		score* s = table_get(string, score)(scores, path->name);
-		u32 fuzzy = s ? s->fuzzy : 4;
-		res.fuzzy += fuzzy / DIRECTORY_MULTIPLIER;
-		path = path->parent;
+score score_task(vector(string)* prompt, string s) {
+	score res = { 0 };
+	res.fuzzy = U16_MAX;
+	for (u32 i = 0; i < prompt->size; i++) {
+		string p = *vector_at(string)(prompt, i);
+		u16 fuzzy = fuzzy_match(p, s);
+		res.fuzzy = MIN(res.fuzzy, fuzzy);
 	}
 
 	return res;
 }
 
+score getch_score(table(string, score)* t, string key, vector(string)* prompt, vector(string)* strings, vector(score)* scores) {
+	score* res = table_get(string, score)(t, key);
+	if (!res) {
+		score s = score_task(prompt, key);
+		vector_add(string)(strings, &key);
+		vector_add(score)(scores, &s);
+		return s;
+	}
+	return *res;
+}
+
+void accumulate_task(void* in) {
+	in_accumulate* args = (in_accumulate*)in;
+	vector(ppath)* paths = &args->in_paths;
+	vector(pairsp)* scores = &args->out_matches;
+
+	for (u32 i = 0; i < paths->size; i++) {
+		ppath p = *vector_at(ppath)(paths, i);
+
+		const u16 DIRECTORY_MULTIPLIER = 4;
+		score res = getch_score(args->in_scores, p->name, &args->in_prompt, &args->out_strings, &args->out_scores);
+
+		ppath path = p->parent;
+		while (path) {
+			score s = getch_score(args->in_scores, path->name, &args->in_prompt, &args->out_strings, &args->out_scores);
+			res.fuzzy += s.fuzzy / DIRECTORY_MULTIPLIER;
+			path = path->parent;
+		}
+
+		pairsp tmp = { res, p };
+
+		if (scores->size < args->in_count) {
+			heap_add(pairsp)(scores, &tmp);
+		} else {
+			heap_replace(pairsp)(scores, &tmp);
+		}
+	}
+}
+
 int lt(pairsp)(pairsp* a, pairsp* b) {
 	if (!a || !b) return false;
-	return a->first.fuzzy < b->first.fuzzy;
+	return a->first.fuzzy > b->first.fuzzy;
 }
 
 int _lt(pairsp)(u8* a, u8* b) {
@@ -106,7 +94,7 @@ int _lt(pairsp)(u8* a, u8* b) {
 
 int le(pairsp)(pairsp* a, pairsp* b) {
 	if (!a || !b) return false;
-	return a->first.fuzzy <= b->first.fuzzy;
+	return a->first.fuzzy >= b->first.fuzzy;
 }
 
 int _le(pairsp)(u8* a, u8* b) {

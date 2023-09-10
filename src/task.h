@@ -23,17 +23,6 @@ struct in_pathtraverse {
 // finds paths
 void pathtraverse_task(void* in);
 
-struct in_score {
-	pfn_callback callback;
-	vector(string) in_prompt;
-	vector(string) in_strings;
-	vector(score) out_scores;
-	u32 id;
-};
-
-// scores strings
-void score_task(void* in);
-
 PAIR_DECLARE(score, ppath);
 typedef pair(score, ppath) pairsp;
 
@@ -42,9 +31,15 @@ HEAP_DECLARE(pairsp);
 
 struct in_accumulate {
 	pfn_callback callback;
-	vector(pairsp) out_scores; // heap
+
+	vector(string) out_strings;
+	vector(score) out_scores;
+	vector(pairsp) out_matches; // heap
+								//
 	vector(ppath) in_paths;
+	vector(string) in_prompt;
 	table(string, score)* in_scores;
+
 	u32 in_count; // how many entries to return
 	u32 id;
 };
