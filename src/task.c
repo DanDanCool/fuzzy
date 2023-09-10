@@ -10,8 +10,9 @@ void pathtraverse_task(void* in) {
 	vector(string) dirs, paths;
 	vector_create(string)(&paths, 0);
 	vector_create(string)(&dirs, 0);
-	read_directory(str(path)(&tmp), &dirs, &paths);
-	string_destroy(&tmp.name);
+
+	string fullpath = str(path)(&tmp);
+	read_directory(fullpath, &dirs, &paths);
 
 	for (u32 i = 0; i < dirs.size; i++) {
 		path* p = path_create(*vector_at(string)(&dirs, i), args->in_dir);
@@ -22,6 +23,11 @@ void pathtraverse_task(void* in) {
 		path* p = path_create(*vector_at(string)(&paths, i), args->in_dir);
 		vector_add(ppath)(&args->out_paths, &p);
 	}
+
+	string_destroy(&tmp.name);
+	string_destroy(&fullpath);
+	vector_destroy(string)(&paths);
+	vector_destroy(string)(&dirs);
 }
 
 void score_task(void* in) {
@@ -70,13 +76,19 @@ void accumulate_task(void* in) {
 
 static score score_tally(table(string, score)* scores, ppath path) {
 	const u16 DIRECTORY_MULTIPLIER = 4;
-	score res = *table_get(string, score)(scores, path->name);
+	score* tmp = table_get(string, score)(scores, path->name);
+	score res = {0};
+	if (!tmp) {
+		res.fuzzy = U16_MAX;
+		return res;
+	}
 
+	res = *tmp;
 	path = path->parent;
 	while (path) {
 		score* s = table_get(string, score)(scores, path->name);
 		u32 fuzzy = s ? s->fuzzy : 4;
-		res.fuzzy += s->fuzzy / DIRECTORY_MULTIPLIER;
+		res.fuzzy += fuzzy / DIRECTORY_MULTIPLIER;
 		path = path->parent;
 	}
 
@@ -84,6 +96,7 @@ static score score_tally(table(string, score)* scores, ppath path) {
 }
 
 int lt(pairsp)(pairsp* a, pairsp* b) {
+	if (!a || !b) return false;
 	return a->first.fuzzy < b->first.fuzzy;
 }
 
@@ -92,6 +105,7 @@ int _lt(pairsp)(u8* a, u8* b) {
 }
 
 int le(pairsp)(pairsp* a, pairsp* b) {
+	if (!a || !b) return false;
 	return a->first.fuzzy <= b->first.fuzzy;
 }
 

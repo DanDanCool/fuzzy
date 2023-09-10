@@ -20,6 +20,7 @@ host = jmake.Host()
 if host.os == jmake.Platform.WIN32:
     lib.define("JOLLY_WIN32", 1)
     lib.compile("/experimental:c11atomics")
+    workspace.libc = "mtd"
 
 debug = lib.filter("debug")
 debug["debug"] = True

@@ -14,10 +14,8 @@ void read_directory(string dir, vector(string)* out_dirs, vector(string)* out_pa
 
 	// skip first two results since those seem to always be . and ..
 	HANDLE directory = FindFirstFileA((char*)dir.data, &dir_entry);
+	if (directory == INVALID_HANDLE_VALUE) return;
 	FindNextFileA(directory, &dir_entry);
-
-	if (directory == INVALID_HANDLE_VALUE)
-		return;
 
 	while (FindNextFileA(directory, &dir_entry))	{
 		int is_dir = dir_entry.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY;
