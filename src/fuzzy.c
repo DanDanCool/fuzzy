@@ -144,9 +144,10 @@ int main_thread(void* in) {
 	const u32 TASK_LIMIT = 8;
 	const u32 SCORE_LIMIT = 64;
 	const u32 ACCUMULATE_LIMIT = 64;
+	const u32 THREAD_COUNT = 8;
 
 	scheduler sched = { 0 };
-	scheduler_create(&sched, 4);
+	scheduler_create(&sched, THREAD_COUNT);
 
 	u32 run = atomic_load_explicit(&state->run, memory_order_relaxed);
 	u32 pathidx = 0;

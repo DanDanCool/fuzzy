@@ -2,9 +2,10 @@
 #include "platform.h"
 #include "score.h"
 #include "fuzzy.h"
+#include <scheduler.h>
 
-void pathtraverse_task(void* in) {
-	in_pathtraverse* args = (in_pathtraverse*)in;
+void pathtraverse_task(taskinfo* in, u32 gen) {
+	in_pathtraverse* args = (in_pathtraverse*)in->args;
 
 	path tmp = { args->in_dir, string_create("*") };
 	vector(string) dirs, paths;
@@ -55,8 +56,10 @@ score getch_score(table(string, score)* t, string key, vector(string)* prompt, v
 	return *res;
 }
 
-void accumulate_task(void* in) {
-	in_accumulate* args = (in_accumulate*)in;
+void accumulate_task(taskinfo* in, u32 gen) {
+	if (in->gen != gen) return;
+
+	in_accumulate* args = (in_accumulate*)in->args;
 	vector(ppath)* paths = &args->in_paths;
 	vector(pairsp)* scores = &args->out_matches;
 

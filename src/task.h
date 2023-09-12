@@ -20,8 +20,10 @@ struct in_pathtraverse {
 	u32 id;
 };
 
+typedef struct taskinfo taskinfo;
+
 // finds paths
-void pathtraverse_task(void* in);
+void pathtraverse_task(taskinfo* in, u32 gen);
 
 PAIR_DECLARE(score, ppath);
 typedef pair(score, ppath) pairsp;
@@ -45,4 +47,4 @@ struct in_accumulate {
 };
 
 // accumulates scores and orders them through a heap
-void accumulate_task(void* in);
+void accumulate_task(taskinfo* in, u32 gen);
