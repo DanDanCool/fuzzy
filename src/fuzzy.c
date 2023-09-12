@@ -57,8 +57,7 @@ void path_destroy(path* p) {
 
 typedef struct fzf_state fzf_state;
 struct fzf_state {
-	string rawprompt;
-	vector(string) prompt;
+	string prompt;
 	vector(ppath) paths;
 	vector(ppath) dirs;
 	vector(string) results;
@@ -79,8 +78,7 @@ int main_thread(void* in);
 fzf_state* state_create() {
 	fzf_state* state = (fzf_state*)alloc8(sizeof(fzf_state)).data;
 
-	state->rawprompt = string_create("");
-	vector_create(string)(ref(state->prompt), 0);
+	state->prompt = string_create("");
 	vector_create(ppath)(ref(state->paths), 0);
 	vector_create(ppath)(ref(state->dirs), 0);
 	vector_create(string)(ref(state->results), 0);
@@ -101,16 +99,16 @@ fzf_state* state_create() {
 
 void state_update(fzf_state* state, cstr prompt) {
 	string tmp = string_create(prompt);
-	if (eq(string)(&tmp, &state->rawprompt)) {
+	if (eq(string)(&tmp, &state->prompt)) {
 		string_destroy(&tmp);
 		return;
 	}
 
 	mutex_acquire(state->lock);
-	string_destroy(&state->rawprompt);
+	string_destroy(&state->prompt);
 	u32 next = atomic_load_explicit(&state->next, memory_order_relaxed);
 	while (!atomic_compare_exchange_weak_explicit(&state->next, &next, next + 1, memory_order_release, memory_order_relaxed));
-	state->rawprompt = tmp;
+	state->prompt = tmp;
 	state->matches.size = 0;
 	mutex_release(state->lock);
 }
@@ -119,11 +117,7 @@ void state_destroy(fzf_state* state) {
 	atomic_store_explicit(&state->run, 0, memory_order_relaxed);
 	thread_join(state->thread);
 
-	for (u32 i = 0; i < state->prompt.size; i++) {
-		string_destroy(vector_at(string)(&state->prompt, i));
-	}
-	vector_destroy(string)(&state->prompt);
-	string_destroy(&state->rawprompt);
+	string_destroy(&state->prompt);
 
 	vector_destroy(ppath)(&state->paths);
 	vector_destroy(ppath)(&state->dirs);
@@ -166,14 +160,8 @@ int main_thread(void* in) {
 		mutex_acquire(state->lock);
 
 		if (next != state->id) {
-			scheduler_waitall(&sched);
+			scheduler_invalidate(&sched);
 
-			for (u32 i = 0; i < state->prompt.size; i++) {
-				string_destroy(vector_at(string)(&state->prompt, i));
-			}
-			vector_destroy(string)(&state->prompt);
-
-			state->prompt = string_split(state->rawprompt, "/");
 			table_clear(string, score)(&state->scores);
 			state->matches.size = 0;
 			state->id = next;
@@ -212,7 +200,6 @@ int main_thread(void* in) {
 		}
 
 		for (u32 i = 0; i < TASK_LIMIT; i++) {
-			if (state->prompt.size == 0) break;
 			if (pathidx >= state->paths.size) break;
 			if (!scheduler_cansubmit(&sched)) break;
 			in_accumulate* args = (in_accumulate*)alloc8(sizeof(in_accumulate)).data;
@@ -223,7 +210,7 @@ int main_thread(void* in) {
 			vector_create(pairsp)(ref(args->out_matches), ACCUMULATE_LIMIT);
 
 			vector_create(ppath)(ref(args->in_paths), ACCUMULATE_LIMIT);
-			args->in_prompt = state->prompt;
+			args->in_prompt = string_split(state->prompt, "/");
 			args->in_scores = &state->scores;
 
 			args->in_count = ACCUMULATE_LIMIT;
@@ -359,10 +346,15 @@ void accumulate_callback(fzf_state* state, void* in) {
 		}
 	}
 
-	vector_destroy(string)(&args->out_strings);
+	vector_destroy(string)(&args->out_strings); // DO NOT DELETE STRINGS, they come from the path name
 	vector_destroy(score)(&args->out_scores);
 	vector_destroy(pairsp)(&args->out_matches);
 	vector_destroy(ppath)(&args->in_paths);
+
+	for (u32 i = 0; i < args->in_prompt.size; i++) {
+		string_destroy(vector_at(string)(&args->in_prompt, i));
+	}
+	vector_destroy(string)(&args->in_prompt);
 }
 
 COPY_DEFINE(ppath);
