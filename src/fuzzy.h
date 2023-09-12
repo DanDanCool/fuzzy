@@ -41,6 +41,3 @@ vector(string) fzf_scores();
 
 JOLLY_API
 vector(string) fzf_paths();
-
-JOLLY_API
-void fzf_cleanup(u8* memory);

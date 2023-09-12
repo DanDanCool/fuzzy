@@ -1,5 +1,5 @@
 #include "score.h"
-#include "memory.h"
+#include <vector.h>
 
 u16 char_match(string s1, string s2) {
 	char chars[256];
@@ -24,7 +24,7 @@ u16 fuzzy_match(string s1, string s2) {
 		return (u16)s1.size;
 
 	vector(u16) edits;
-	vector_create(u16)(&edits, (u32)s2.size + 1);
+	vector_create(u16)(ref(edits), (u32)s2.size + 1);
 
 	for (u64 i = 0; i <= s2.size; i++) {
 		u16 val = (u16)i;

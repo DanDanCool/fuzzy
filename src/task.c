@@ -8,8 +8,8 @@ void pathtraverse_task(void* in) {
 
 	path tmp = { args->in_dir, string_create("*") };
 	vector(string) dirs, paths;
-	vector_create(string)(&paths, 0);
-	vector_create(string)(&dirs, 0);
+	vector_create(string)(ref(paths), 0);
+	vector_create(string)(ref(dirs), 0);
 
 	string fullpath = str(path)(&tmp);
 	read_directory(fullpath, &dirs, &paths);

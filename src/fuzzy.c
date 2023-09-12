@@ -5,13 +5,15 @@
 #include <scheduler.h>
 #include <memory.h>
 
+TABLE_DECLARE(u64, u8);
+
 enum {
 	STATE_NEW_PROMPT = 1 << 0,
 };
 
 string str(path)(ppath p) {
 	vector(string) tmp;
-	vector_create(string)(&tmp, 0);
+	vector_create(string)(ref(tmp), 0);
 	ppath node = p->parent;
 	while (node) {
 		vector_add(string)(&tmp, &node->name);
@@ -27,7 +29,7 @@ string str(path)(ppath p) {
 	string div = string_create(pathdiv);
 	vector(string) strings;
 	u32 size = tmp.size * 2 + 1;
-	vector_create(string)(&strings, size);
+	vector_create(string)(ref(strings), size);
 	for (i32 i = tmp.size - 1; i >= 0; i--) {
 		vector_add(string)(&strings, vector_at(string)(&tmp, i));
 		vector_add(string)(&strings, &div);
@@ -36,6 +38,7 @@ string str(path)(ppath p) {
 	vector_add(string)(&strings, &p->name);
 
 	string res = string_combine(strings);
+	vector_destroy(string)(&tmp);
 	vector_destroy(string)(&strings);
 	string_destroy(&div);
 	return res;
@@ -58,6 +61,7 @@ struct fzf_state {
 	vector(string) prompt;
 	vector(ppath) paths;
 	vector(ppath) dirs;
+	vector(string) results;
 	vector(pairsp) matches;
 	table(string, score) scores;
 
@@ -76,10 +80,11 @@ fzf_state* state_create() {
 	fzf_state* state = (fzf_state*)alloc8(sizeof(fzf_state)).data;
 
 	state->rawprompt = string_create("");
-	vector_create(string)(&state->prompt, 0);
-	vector_create(ppath)(&state->paths, 0);
-	vector_create(ppath)(&state->dirs, 0);
-	vector_create(pairsp)(&state->matches, 0);
+	vector_create(string)(ref(state->prompt), 0);
+	vector_create(ppath)(ref(state->paths), 0);
+	vector_create(ppath)(ref(state->dirs), 0);
+	vector_create(string)(ref(state->results), 0);
+	vector_create(pairsp)(ref(state->matches), 0);
 	table_create(string, score)(&state->scores, 0);
 
 	path* p = path_create(string_create("."), NULL);
@@ -113,9 +118,21 @@ void state_update(fzf_state* state, cstr prompt) {
 void state_destroy(fzf_state* state) {
 	atomic_store_explicit(&state->run, 0, memory_order_relaxed);
 	thread_join(state->thread);
+
+	for (u32 i = 0; i < state->prompt.size; i++) {
+		string_destroy(vector_at(string)(&state->prompt, i));
+	}
 	vector_destroy(string)(&state->prompt);
+	string_destroy(&state->rawprompt);
+
 	vector_destroy(ppath)(&state->paths);
 	vector_destroy(ppath)(&state->dirs);
+
+	for (u32 i = 0; i < state->results.size; i++) {
+		string_destroy(vector_at(string)(&state->results, i));
+	}
+	vector_destroy(string)(&state->results);
+
 	vector_destroy(pairsp)(&state->matches);
 	table_destroy(string, score)(&state->scores);
 	mutex_destroy(state->lock);
@@ -140,8 +157,8 @@ int main_thread(void* in) {
 	u32 run = atomic_load_explicit(&state->run, memory_order_relaxed);
 	u32 pathidx = 0;
 
-	const u32 MAX_BACKOFF = 256;
-	const u32 INITIAL_BACKOFF = 64;
+	const u32 MAX_BACKOFF = 128;
+	const u32 INITIAL_BACKOFF = 16;
 	u32 backoff = INITIAL_BACKOFF;
 
 	while (run) {
@@ -151,7 +168,12 @@ int main_thread(void* in) {
 
 		if (next != state->id) {
 			scheduler_waitall(&sched);
+
+			for (u32 i = 0; i < state->prompt.size; i++) {
+				string_destroy(vector_at(string)(&state->prompt, i));
+			}
 			vector_destroy(string)(&state->prompt);
+
 			state->prompt = string_split(state->rawprompt, "/");
 			table_clear(string, score)(&state->scores);
 			state->matches.size = 0;
@@ -179,8 +201,8 @@ int main_thread(void* in) {
 			in_pathtraverse* args = (in_pathtraverse*)alloc8(sizeof(in_pathtraverse)).data;
 			args->callback = pathtraverse_callback;
 			args->in_dir = *vector_del(ppath)(&state->dirs, 0);
-			vector_create(ppath)(&args->out_dirs, 0);
-			vector_create(ppath)(&args->out_paths, 0);
+			vector_create(ppath)(ref(args->out_dirs), 0);
+			vector_create(ppath)(ref(args->out_paths), 0);
 			args->id = state->id;
 
 			taskinfo* task = (taskinfo*)alloc8(sizeof(taskinfo)).data;
@@ -198,11 +220,11 @@ int main_thread(void* in) {
 			in_accumulate* args = (in_accumulate*)alloc8(sizeof(in_accumulate)).data;
 			args->callback = accumulate_callback;
 
-			vector_create(string)(&args->out_strings, 0);
-			vector_create(score)(&args->out_scores, 0);
-			vector_create(pairsp)(&args->out_matches, ACCUMULATE_LIMIT);
+			vector_create(string)(ref(args->out_strings), 0);
+			vector_create(score)(ref(args->out_scores), 0);
+			vector_create(pairsp)(ref(args->out_matches), ACCUMULATE_LIMIT);
 
-			vector_create(ppath)(&args->in_paths, ACCUMULATE_LIMIT);
+			vector_create(ppath)(ref(args->in_paths), ACCUMULATE_LIMIT);
 			args->in_prompt = state->prompt;
 			args->in_scores = &state->scores;
 
@@ -243,6 +265,10 @@ void fzf_init() {
 
 void fzf_term() {
 	state_destroy(s_state);
+
+#ifdef JOLLY_DEBUG_HEAP
+	_CrtDumpMemoryLeaks();
+#endif
 }
 
 void fzf_start(cstr prompt) {
@@ -250,42 +276,51 @@ void fzf_start(cstr prompt) {
 }
 
 vector(string) fzf_scores() {
-	vector(pairsp) tmp;
+	for (u32 i = 0; i < s_state->results.size; i++) {
+		string_destroy(vector_at(string)(&s_state->results, i));
+	}
+	vector_clear(string)(&s_state->results);
 
+	vector(pairsp) tmp;
 	mutex_acquire(s_state->lock);
-	vector_create(pairsp)(&tmp, s_state->matches.size);
+	vector_create(pairsp)(ref(tmp), s_state->matches.size);
 	copy256(s_state->matches.data, tmp.data, tmp.reserve);
 	tmp.size = s_state->matches.size;
 	mutex_release(s_state->lock);
 
-	vector(string) res;
-	vector_create(string)(&res, 0);
 	while (tmp.size) {
 		pairsp sp = *heap_del(pairsp)(&tmp, 0);
 		string name = str(path)(sp.second);
-		vector_add(string)(&res, &name);
+		vector_add(string)(&s_state->results, &name);
 	}
 
 	vector_destroy(pairsp)(&tmp);
-	return res;
+	return s_state->results;
 }
 
 vector(string) fzf_paths() {
+	for (u32 i = 0; i < s_state->results.size; i++) {
+		string_destroy(vector_at(string)(&s_state->results, i));
+	}
+	vector_clear(string)(&s_state->results);
+
 	mutex_acquire(s_state->lock);
-	vector(string) res;
-	vector_create(string)(&res, s_state->paths.size);
 	for (u32 i = 0; i < s_state->paths.size; i++) {
 		ppath p = *vector_at(ppath)(&s_state->paths, i);
 		string fullpath = str(path)(p);
-		vector_add(string)(&res, &fullpath);
+		vector_add(string)(&s_state->results, &fullpath);
 	}
 
 	mutex_release(s_state->lock);
-	return res;
+	return s_state->results;
 }
 
-void fzf_cleanup(u8* memory) {
-	free256(memory);
+void fzf_cleanup(vector(string)* v) {
+	for (u32 i = 0; i < v->size; i++) {
+		string_destroy(vector_at(string)(v, i));
+	}
+
+	vector_destroy(string)(v);
 }
 
 void pathtraverse_callback(fzf_state* state, void* in) {
@@ -343,3 +378,4 @@ SWAP_DEFINE(score);
 VECTOR_DEFINE(ppath);
 VECTOR_DEFINE(score);
 STRTABLE_DEFINE(score);
+TABLE_DEFINE(u64, u8);
