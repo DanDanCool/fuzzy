@@ -1,4 +1,6 @@
 import jmake
+import shutil
+from pathlib import Path
 
 jmake.setupenv()
 
@@ -35,5 +37,20 @@ debug["debug"] = True
 
 workspace.add(lib)
 workspace.add(test)
+
+@jmake.postbuild(lib)
+def copytonvim(project):
+    path = Path.home()
+    if host.os == jmake.Platform.WIN32:
+        path /= "AppData/Local/nvim/bin"
+    binary = Path("bin/Release/libfuzzy.dll").absolute()
+    if not binary.is_file():
+        print(f"could not find {str(binary)}, aborting...")
+        return
+    print(f"copying {str(binary)} to {path}")
+    path.mkdir(exist_ok=True)
+    path /= "libfuzzy.dll"
+    path.touch()
+    shutil.copy(binary, path)
 
 jmake.generate(workspace)

@@ -162,7 +162,6 @@ int main_thread(void* in) {
 	u32 backoff = INITIAL_BACKOFF;
 
 	while (run) {
-		int stall = true;
 		u32 next = atomic_load_explicit(&state->next, memory_order_acquire);
 		mutex_acquire(state->lock);
 
@@ -180,7 +179,6 @@ int main_thread(void* in) {
 			state->id = next;
 
 			backoff = INITIAL_BACKOFF;
-			stall = false;
 			pathidx = 0;
 		}
 
@@ -192,7 +190,7 @@ int main_thread(void* in) {
 			free8(info);
 
 			info = queue_del(taskinfo)(&sched.done);
-			stall = false;
+			backoff = INITIAL_BACKOFF;
 		}
 
 		u32 count = MIN(TASK_LIMIT, state->dirs.size);
@@ -210,7 +208,7 @@ int main_thread(void* in) {
 			task->args = (void*)args;
 
 			scheduler_submit(&sched, task);
-			stall = false;
+			backoff = INITIAL_BACKOFF;
 		}
 
 		for (u32 i = 0; i < TASK_LIMIT; i++) {
@@ -241,17 +239,14 @@ int main_thread(void* in) {
 			task->args = (void*)args;
 
 			scheduler_submit(&sched, task);
-			stall = false;
+			backoff = INITIAL_BACKOFF;
 		}
 
 		mutex_release(state->lock);
 		run = atomic_load_explicit(&state->run, memory_order_relaxed);
 
-		if (!stall) thread_yield();
-		else {
-			thread_sleep(backoff);
-			backoff = MIN(MAX_BACKOFF, backoff * 2);
-		}
+		thread_sleep(backoff);
+		backoff = MIN(MAX_BACKOFF, backoff * 2);
 	}
 
 	scheduler_destroy(&sched);
