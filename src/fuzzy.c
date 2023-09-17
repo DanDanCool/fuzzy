@@ -63,6 +63,7 @@ struct fzf_state {
 	vector(string) results;
 	vector(pairsp) matches;
 	table(string, score) scores;
+	table(string, score) special;
 
 	threadid thread;
 	mutex lock;
@@ -84,6 +85,14 @@ fzf_state* state_create() {
 	vector_create(string)(ref(state->results), 0);
 	vector_create(pairsp)(ref(state->matches), 0);
 	table_create(string, score)(&state->scores, 0);
+
+	table_create(string, score)(&state->special, 0);
+
+	score s = { 32 };
+	table_set(cstr, score)(&state->special, ".git", &s);
+	table_set(cstr, score)(&state->special, "bin", &s);
+	s.fuzzy = -8;
+	table_set(cstr, score)(&state->special, "src", &s);
 
 	path* p = path_create(string_create("."), NULL);
 	vector_add(ppath)(&state->dirs, &p);
@@ -213,6 +222,7 @@ int main_thread(void* in) {
 			vector_create(ppath)(ref(args->in_paths), ACCUMULATE_LIMIT);
 			args->in_prompt = string_split(state->prompt, "/");
 			args->in_scores = &state->scores;
+			args->in_special = &state->special;
 
 			args->in_count = ACCUMULATE_LIMIT;
 			args->id = state->id;

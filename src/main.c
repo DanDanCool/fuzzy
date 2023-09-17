@@ -23,7 +23,7 @@ int main(int argc, char** argv) {
 	prompts[4] = "test";
 
 	int idx = 0;
-	for (int i = 0; i < 5000; i++) {
+	for (int i = 0; i < 5; i++) {
 		vector(string) paths = fzf_scores();
 
 		printf("--------------------\n");
@@ -33,9 +33,12 @@ int main(int argc, char** argv) {
 		}
 		printf("--------------------\n");
 
-		fzf_start(prompts[idx]);
-		idx = (idx + 1) % 5;
-		Sleep(50);
+		scanf("%s", buf.data);
+
+		fzf_start(buf.data);
+		//fzf_start(prompts[idx]);
+		//idx = (idx + 1) % 5;
+		Sleep(500);
 	}
 
 	fzf_term();

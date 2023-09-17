@@ -21,7 +21,7 @@ path* path_create(string name, path* parent);
 void path_destroy(path* p);
 
 struct score {
-	u16 fuzzy;
+	i16 fuzzy;
 };
 
 VECTOR_DECLARE(score);

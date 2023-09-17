@@ -40,7 +40,9 @@ struct in_accumulate {
 								//
 	vector(ppath) in_paths;
 	vector(string) in_prompt;
+
 	table(string, score)* in_scores;
+	table(string, score)* in_special;
 
 	u32 in_count; // how many entries to return
 	u32 id;

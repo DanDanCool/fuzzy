@@ -35,7 +35,7 @@ const u16 DEFAULT_SCORE = 32;
 
 score score_task(vector(string)* prompt, string s) {
 	score res = { 0 };
-	res.fuzzy = U16_MAX;
+	res.fuzzy = I16_MAX;
 	for (u32 i = 0; i < prompt->size; i++) {
 		string p = *vector_at(string)(prompt, i);
 		u16 fuzzy = fuzzy_match(p, s);
@@ -66,15 +66,33 @@ void accumulate_task(taskinfo* in, u32 gen) {
 	for (u32 i = 0; i < paths->size; i++) {
 		ppath p = *vector_at(ppath)(paths, i);
 
-		const u16 DIRECTORY_MULTIPLIER = 4;
 		score res = getch_score(args->in_scores, p->name, &args->in_prompt, &args->out_strings, &args->out_scores);
+		const i16 THRESHOLD = (i16)p->name.size / 4;
+		const i16 DIRECTORY_MULTIPLIER = res.fuzzy <= THRESHOLD ? 2 :  1;
 
 		ppath path = p->parent;
+		i16 path_score = 0;
+		i16 special = 0;
+		int path_match = false;
 		while (path) {
+			score* tmp = table_get(string, score)(args->in_special, path->name);
+			if (tmp) {
+				special = tmp->fuzzy;
+				break;
+			}
+
 			score s = getch_score(args->in_scores, path->name, &args->in_prompt, &args->out_strings, &args->out_scores);
-			res.fuzzy += s.fuzzy / DIRECTORY_MULTIPLIER;
+			if (s.fuzzy <= 1) {
+				path_match = true;
+			}
+
+			path_score += MAX(s.fuzzy / DIRECTORY_MULTIPLIER, 1);
 			path = path->parent;
 		}
+
+		path_score /= path_match ? 64 : 1;
+		path_score += special;
+		res.fuzzy += path_score;
 
 		pairsp tmp = { res, p };
 
